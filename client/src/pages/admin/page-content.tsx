@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Plus, Trash2, Save } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Loader2, Plus, Trash2, Save, Camera } from "lucide-react";
 import { getAuthHeader } from "@/lib/auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -16,6 +17,7 @@ interface TeamMember {
   name: string;
   role: string;
   initials: string;
+  photoUrl?: string;
 }
 
 interface Value {
@@ -233,6 +235,48 @@ function AboutPageEditor({
       });
     }
   }, [content.cta]);
+
+  const { toast } = useToast();
+  const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
+  const fileInputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  const handlePhotoUpload = async (index: number, file: File) => {
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "Invalid file", description: "Please select an image file", variant: "destructive" });
+      return;
+    }
+
+    setUploadingIndex(index);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await fetch("/api/upload/cloudinary", {
+        method: "POST",
+        headers: getAuthHeader(),
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Upload failed");
+      }
+
+      const result = await response.json();
+      const newTeam = [...team];
+      newTeam[index] = { ...newTeam[index], photoUrl: result.url };
+      setTeam(newTeam);
+      toast({ title: "Photo uploaded", description: "Team member photo has been uploaded successfully" });
+    } catch (error) {
+      toast({ 
+        title: "Upload failed", 
+        description: error instanceof Error ? error.message : "Failed to upload photo",
+        variant: "destructive" 
+      });
+    } finally {
+      setUploadingIndex(null);
+    }
+  };
 
   const addTeamMember = () => {
     setTeam([...team, { name: "", role: "", initials: "" }]);
@@ -461,7 +505,42 @@ function AboutPageEditor({
         <CardContent>
           <div className="grid gap-4 md:grid-cols-2">
             {team.map((member, index) => (
-              <div key={index} className="flex items-center gap-2 border rounded-md p-4">
+              <div key={index} className="flex items-start gap-4 border rounded-md p-4">
+                <div className="flex flex-col items-center gap-2">
+                  <div className="relative">
+                    <Avatar className="h-16 w-16">
+                      {member.photoUrl ? (
+                        <AvatarImage src={member.photoUrl} alt={member.name} />
+                      ) : null}
+                      <AvatarFallback className="text-lg">{member.initials || "?"}</AvatarFallback>
+                    </Avatar>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      ref={(el) => { fileInputRefs.current[index] = el; }}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handlePhotoUpload(index, file);
+                        e.target.value = "";
+                      }}
+                      data-testid={`input-team-photo-${index}`}
+                    />
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => fileInputRefs.current[index]?.click()}
+                    disabled={uploadingIndex === index}
+                    data-testid={`button-upload-photo-${index}`}
+                  >
+                    {uploadingIndex === index ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Camera className="h-3 w-3" />
+                    )}
+                  </Button>
+                </div>
                 <div className="flex-1 space-y-2">
                   <Input
                     placeholder="Name"
