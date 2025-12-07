@@ -13,6 +13,7 @@ import {
   siteSettings,
   reviews,
   contactMessages,
+  pageContent,
   type User,
   type InsertUser,
   type Service,
@@ -48,6 +49,7 @@ import {
   type InsertContactMessage,
   type ContactMessageStatus,
   type ServiceWithRating,
+  type PageContent,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -115,6 +117,10 @@ export interface IStorage {
   getContactMessage(id: string): Promise<ContactMessage | undefined>;
   createContactMessage(message: InsertContactMessage): Promise<ContactMessage>;
   updateContactMessageStatus(id: string, status: ContactMessageStatus): Promise<ContactMessage | undefined>;
+
+  getPageContent(pageKey: string): Promise<Record<string, any>>;
+  getPageSection(pageKey: string, sectionKey: string): Promise<any | undefined>;
+  upsertPageContent(pageKey: string, sectionKey: string, content: any): Promise<PageContent>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -694,6 +700,52 @@ export class DatabaseStorage implements IStorage {
       .where(eq(contactMessages.id, id))
       .returning();
     return message;
+  }
+
+  async getPageContent(pageKey: string): Promise<Record<string, any>> {
+    const rows = await db.select().from(pageContent).where(eq(pageContent.pageKey, pageKey));
+    const result: Record<string, any> = {};
+    rows.forEach((row) => {
+      try {
+        result[row.sectionKey] = JSON.parse(row.content);
+      } catch {
+        result[row.sectionKey] = row.content;
+      }
+    });
+    return result;
+  }
+
+  async getPageSection(pageKey: string, sectionKey: string): Promise<any | undefined> {
+    const [row] = await db
+      .select()
+      .from(pageContent)
+      .where(and(eq(pageContent.pageKey, pageKey), eq(pageContent.sectionKey, sectionKey)));
+    if (!row) return undefined;
+    try {
+      return JSON.parse(row.content);
+    } catch {
+      return row.content;
+    }
+  }
+
+  async upsertPageContent(pageKey: string, sectionKey: string, content: any): Promise<PageContent> {
+    const contentStr = typeof content === "string" ? content : JSON.stringify(content);
+    const existing = await db
+      .select()
+      .from(pageContent)
+      .where(and(eq(pageContent.pageKey, pageKey), eq(pageContent.sectionKey, sectionKey)));
+    
+    if (existing.length > 0) {
+      const [updated] = await db
+        .update(pageContent)
+        .set({ content: contentStr, updatedAt: new Date() })
+        .where(and(eq(pageContent.pageKey, pageKey), eq(pageContent.sectionKey, sectionKey)))
+        .returning();
+      return updated;
+    }
+    
+    const [created] = await db.insert(pageContent).values({ pageKey, sectionKey, content: contentStr }).returning();
+    return created;
   }
 }
 

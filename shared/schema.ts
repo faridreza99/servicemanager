@@ -378,3 +378,59 @@ export type ServiceWithRating = Service & {
   avgRating: number;
   reviewCount: number;
 };
+
+export const pageContent = pgTable("page_content", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  pageKey: text("page_key").notNull(),
+  sectionKey: text("section_key").notNull(),
+  content: text("content").notNull(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertPageContentSchema = createInsertSchema(pageContent).omit({
+  id: true,
+  updatedAt: true,
+});
+
+export type PageContent = typeof pageContent.$inferSelect;
+export type InsertPageContent = z.infer<typeof insertPageContentSchema>;
+
+export type AboutPageContent = {
+  mission?: {
+    title: string;
+    description: string;
+    secondaryDescription?: string;
+    highlights: string[];
+  };
+  values?: Array<{
+    icon: string;
+    title: string;
+    description: string;
+  }>;
+  team?: Array<{
+    name: string;
+    role: string;
+    initials: string;
+  }>;
+  stats?: Array<{
+    value: string;
+    label: string;
+  }>;
+  cta?: {
+    title: string;
+    description: string;
+    badges: string[];
+  };
+};
+
+export type ContactPageContent = {
+  contactInfo?: {
+    email: string;
+    phone: string;
+    address: string;
+  };
+  businessHours?: Array<{
+    day: string;
+    hours: string;
+  }>;
+};
