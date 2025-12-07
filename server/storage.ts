@@ -61,6 +61,7 @@ export interface IStorage {
 
   getMessages(chatId: string, userId: string, isStaff: boolean): Promise<MessageWithSender[]>;
   createMessage(message: InsertMessage): Promise<Message>;
+  getMessageByAttachmentUrl(attachmentUrl: string): Promise<Message | undefined>;
 
   getTasks(): Promise<TaskWithDetails[]>;
   getTasksByStaff(staffId: string): Promise<TaskWithDetails[]>;
@@ -290,6 +291,11 @@ export class DatabaseStorage implements IStorage {
   async createMessage(message: InsertMessage): Promise<Message> {
     const [created] = await db.insert(messages).values(message).returning();
     return created;
+  }
+
+  async getMessageByAttachmentUrl(attachmentUrl: string): Promise<Message | undefined> {
+    const [message] = await db.select().from(messages).where(eq(messages.attachmentUrl, attachmentUrl));
+    return message;
   }
 
   async getTasks(): Promise<TaskWithDetails[]> {

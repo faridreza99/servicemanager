@@ -103,6 +103,8 @@ export const messages = pgTable("messages", {
   isPrivate: boolean("is_private").notNull().default(false),
   isQuotation: boolean("is_quotation").notNull().default(false),
   quotationAmount: integer("quotation_amount"),
+  attachmentUrl: text("attachment_url"),
+  attachmentType: text("attachment_type"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

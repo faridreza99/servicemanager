@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, Lock, DollarSign, X } from "lucide-react";
+import { Send, Lock, DollarSign, X, Paperclip, FileText, Image } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -11,10 +11,12 @@ import { Label } from "@/components/ui/label";
 import type { MessageWithSender, UserRole } from "@shared/schema";
 import { formatDistanceToNow } from "date-fns";
 import { useAuth } from "@/lib/auth";
+import { ObjectUploader } from "@/components/ObjectUploader";
+import { apiRequest } from "@/lib/queryClient";
 
 interface ChatInterfaceProps {
   messages: MessageWithSender[];
-  onSendMessage: (content: string, isPrivate: boolean, isQuotation?: boolean, quotationAmount?: number) => void;
+  onSendMessage: (content: string, isPrivate: boolean, isQuotation?: boolean, quotationAmount?: number, attachmentUrl?: string, attachmentType?: string) => void;
   onClose?: () => void;
   isOpen: boolean;
   isSending?: boolean;
@@ -58,7 +60,41 @@ export function ChatInterface({
   const [isPrivate, setIsPrivate] = useState(false);
   const [isQuotation, setIsQuotation] = useState(false);
   const [quotationAmount, setQuotationAmount] = useState("");
+  const [attachmentUrl, setAttachmentUrl] = useState<string | null>(null);
+  const [attachmentType, setAttachmentType] = useState<string | null>(null);
+  const [attachmentName, setAttachmentName] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const pendingStoragePathRef = useRef<string | null>(null);
+
+  const handleGetUploadParameters = async () => {
+    const response = await apiRequest("POST", "/api/objects/upload");
+    const data = await response.json();
+    pendingStoragePathRef.current = data.storagePath;
+    return {
+      method: "PUT" as const,
+      url: data.uploadURL,
+    };
+  };
+
+  const handleUploadComplete = (result: any) => {
+    if (result.successful && result.successful.length > 0) {
+      const uploadedFile = result.successful[0];
+      const storagePath = pendingStoragePathRef.current;
+      
+      if (storagePath) {
+        setAttachmentUrl(storagePath);
+        setAttachmentType(uploadedFile.type || "application/octet-stream");
+        setAttachmentName(uploadedFile.name || "file");
+      }
+      pendingStoragePathRef.current = null;
+    }
+  };
+
+  const clearAttachment = () => {
+    setAttachmentUrl(null);
+    setAttachmentType(null);
+    setAttachmentName(null);
+  };
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -67,19 +103,22 @@ export function ChatInterface({
   }, [messages]);
 
   const handleSend = () => {
-    if (!message.trim() && !isQuotation) return;
+    if (!message.trim() && !isQuotation && !attachmentUrl) return;
     if (isQuotation && !quotationAmount) return;
 
     onSendMessage(
-      message, 
+      message || (attachmentUrl ? "Shared a file" : ""), 
       isPrivate, 
       isQuotation, 
-      isQuotation ? parseInt(quotationAmount) : undefined
+      isQuotation ? parseInt(quotationAmount) : undefined,
+      attachmentUrl || undefined,
+      attachmentType || undefined
     );
     setMessage("");
     setIsPrivate(false);
     setIsQuotation(false);
     setQuotationAmount("");
+    clearAttachment();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -188,7 +227,34 @@ export function ChatInterface({
                             : "bg-accent"
                         }`}
                       >
-                        <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                        {msg.attachmentUrl && (
+                          <div className="mb-2">
+                            {msg.attachmentType?.startsWith("image/") ? (
+                              <a href={msg.attachmentUrl} target="_blank" rel="noopener noreferrer">
+                                <img 
+                                  src={msg.attachmentUrl} 
+                                  alt="Attachment" 
+                                  className="max-w-full max-h-48 rounded-md cursor-pointer"
+                                  data-testid={`attachment-image-${msg.id}`}
+                                />
+                              </a>
+                            ) : (
+                              <a 
+                                href={msg.attachmentUrl} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className={`flex items-center gap-2 p-2 rounded-md ${isOwn ? "bg-primary-foreground/10" : "bg-background/50"}`}
+                                data-testid={`attachment-file-${msg.id}`}
+                              >
+                                <FileText className="h-4 w-4" />
+                                <span className="text-sm underline">View Attachment</span>
+                              </a>
+                            )}
+                          </div>
+                        )}
+                        {msg.content && (!msg.attachmentUrl || msg.content !== "Shared a file") && (
+                          <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                        )}
                       </div>
                     )}
 
@@ -248,18 +314,49 @@ export function ChatInterface({
           />
         )}
 
+        {attachmentUrl && (
+          <div className="flex items-center gap-2 px-3 py-2 bg-accent rounded-md">
+            {attachmentType?.startsWith("image/") ? (
+              <Image className="h-4 w-4 text-muted-foreground" />
+            ) : (
+              <FileText className="h-4 w-4 text-muted-foreground" />
+            )}
+            <span className="text-sm flex-1 truncate">{attachmentName}</span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={clearAttachment}
+              className="h-6 w-6"
+              data-testid="button-clear-attachment"
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          </div>
+        )}
+
         <div className="flex gap-2">
+          <ObjectUploader
+            maxNumberOfFiles={1}
+            maxFileSize={10485760}
+            onGetUploadParameters={handleGetUploadParameters}
+            onComplete={handleUploadComplete}
+            disabled={isSending}
+          >
+            <Paperclip className="h-4 w-4" />
+          </ObjectUploader>
           <Input
             placeholder={isQuotation ? "Add a description (optional)" : "Type a message..."}
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             onKeyDown={handleKeyDown}
             disabled={isSending}
+            className="flex-1"
             data-testid="input-message"
           />
           <Button 
             onClick={handleSend} 
-            disabled={isSending || (!message.trim() && (!isQuotation || !quotationAmount))}
+            disabled={isSending || (!message.trim() && !attachmentUrl && (!isQuotation || !quotationAmount))}
             data-testid="button-send-message"
           >
             <Send className="h-4 w-4" />

@@ -55,7 +55,7 @@ export default function AdminChatPage() {
   }, [id]);
 
   const sendMessageMutation = useMutation({
-    mutationFn: async ({ content, isPrivate, isQuotation, quotationAmount }: { content: string; isPrivate: boolean; isQuotation?: boolean; quotationAmount?: number }) => apiRequest("POST", `/api/chats/${id}/messages`, { content, isPrivate, isQuotation: isQuotation || false, quotationAmount }),
+    mutationFn: async ({ content, isPrivate, isQuotation, quotationAmount, attachmentUrl, attachmentType }: { content: string; isPrivate: boolean; isQuotation?: boolean; quotationAmount?: number; attachmentUrl?: string; attachmentType?: string }) => apiRequest("POST", `/api/chats/${id}/messages`, { content, isPrivate, isQuotation: isQuotation || false, quotationAmount, attachmentUrl, attachmentType }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/chats", id, "messages"] }),
     onError: (error: Error) => toast({ title: "Failed to send message", description: error.message, variant: "destructive" }),
   });
@@ -69,8 +69,8 @@ export default function AdminChatPage() {
     onError: (error: Error) => toast({ title: "Failed to close chat", description: error.message, variant: "destructive" }),
   });
 
-  const handleSendMessage = useCallback((content: string, isPrivate: boolean, isQuotation?: boolean, quotationAmount?: number) => {
-    sendMessageMutation.mutate({ content, isPrivate, isQuotation, quotationAmount });
+  const handleSendMessage = useCallback((content: string, isPrivate: boolean, isQuotation?: boolean, quotationAmount?: number, attachmentUrl?: string, attachmentType?: string) => {
+    sendMessageMutation.mutate({ content, isPrivate, isQuotation, quotationAmount, attachmentUrl, attachmentType });
   }, [sendMessageMutation]);
 
   const isLoading = chatLoading || messagesLoading;

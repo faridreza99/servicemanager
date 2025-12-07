@@ -79,11 +79,13 @@ export default function CustomerChatPage() {
   }, [id, toast]);
 
   const sendMessageMutation = useMutation({
-    mutationFn: async ({ content, isPrivate }: { content: string; isPrivate: boolean }) => {
+    mutationFn: async ({ content, isPrivate, attachmentUrl, attachmentType }: { content: string; isPrivate: boolean; attachmentUrl?: string; attachmentType?: string }) => {
       return apiRequest("POST", `/api/chats/${id}/messages`, {
         content,
         isPrivate,
         isQuotation: false,
+        attachmentUrl,
+        attachmentType,
       });
     },
     onSuccess: () => {
@@ -98,8 +100,8 @@ export default function CustomerChatPage() {
     },
   });
 
-  const handleSendMessage = useCallback((content: string, isPrivate: boolean) => {
-    sendMessageMutation.mutate({ content, isPrivate });
+  const handleSendMessage = useCallback((content: string, isPrivate: boolean, _isQuotation?: boolean, _quotationAmount?: number, attachmentUrl?: string, attachmentType?: string) => {
+    sendMessageMutation.mutate({ content, isPrivate, attachmentUrl, attachmentType });
   }, [sendMessageMutation]);
 
   const isLoading = chatLoading || messagesLoading;

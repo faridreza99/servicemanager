@@ -58,13 +58,13 @@ export default function StaffChatPage() {
   }, [id, toast]);
 
   const sendMessageMutation = useMutation({
-    mutationFn: async ({ content, isPrivate }: { content: string; isPrivate: boolean }) => apiRequest("POST", `/api/chats/${id}/messages`, { content, isPrivate, isQuotation: false }),
+    mutationFn: async ({ content, isPrivate, attachmentUrl, attachmentType }: { content: string; isPrivate: boolean; attachmentUrl?: string; attachmentType?: string }) => apiRequest("POST", `/api/chats/${id}/messages`, { content, isPrivate, isQuotation: false, attachmentUrl, attachmentType }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/chats", id, "messages"] }),
     onError: (error: Error) => toast({ title: "Failed to send message", description: error.message, variant: "destructive" }),
   });
 
-  const handleSendMessage = useCallback((content: string, isPrivate: boolean) => {
-    sendMessageMutation.mutate({ content, isPrivate });
+  const handleSendMessage = useCallback((content: string, isPrivate: boolean, _isQuotation?: boolean, _quotationAmount?: number, attachmentUrl?: string, attachmentType?: string) => {
+    sendMessageMutation.mutate({ content, isPrivate, attachmentUrl, attachmentType });
   }, [sendMessageMutation]);
 
   const isLoading = chatLoading || messagesLoading;
