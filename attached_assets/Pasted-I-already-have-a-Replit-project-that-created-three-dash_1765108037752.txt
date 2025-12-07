@@ -1,0 +1,129 @@
+I already have a Replit project that created three dashboards (Customer, Staff, Admin). It did not create the public website pages. Now update the same Next.js (App Router, TypeScript) project to add a complete public-facing website and wire it into the existing backend. Do not remove or change the dashboards — only add public pages and integrate them with existing APIs and auth.
+
+Strict technical requirements (follow exactly):
+
+Project must remain Next.js (app router, TypeScript).
+
+Authentication is JWT-based (keep and reuse the existing JWT system).
+
+UI must use shadcn/ui components and Tailwind CSS.
+
+Database remains Prisma (use existing schema and DATABASE_URL).
+
+Real-time chat remains Socket.IO; do not replace it.
+
+All work must be placed inside the same Replit project/repo.
+
+What to create now (public pages & behavior):
+
+Home page (/)
+
+Hero section with app name, short tagline, and CTA buttons: “View Services” and “Book a Service” (Book CTA should redirect to login if user not authenticated).
+
+Featured services carousel or grid (pull items from /api/services).
+
+Short “How it works” 3-step summary (Book → Chat → Assign).
+
+Testimonials or featured reviews summary (average rating per service).
+
+SEO-friendly <title>, <meta name="description">, and Open Graph tags.
+
+Services listing page (/services)
+
+Show all active services from the existing services API.
+
+Each service card shows: title, short description, avg rating, “View details” and “Book now” buttons.
+
+No pricing displayed anywhere.
+
+Pagination or “Load more”.
+
+Service detail page (/services/[slug-or-id])
+
+Full description, gallery placeholder, list of reviews (public reviews only), average rating, and “Book this service” CTA (opens booking flow).
+
+Booking CTA must create a booking via the existing booking API and then redirect user to their dashboard chat for that booking (or open chat UI).
+
+Include schema.org structured data JSON-LD for the service.
+
+About page (/about)
+
+Company description, mission, team section (placeholder cards), and trust badges.
+
+SEO meta tags.
+
+Contact page (/contact)
+
+Contact form: name, email, subject, message, optional phone.
+
+On submit: store message in ContactMessage table via Prisma (create the model if missing) and trigger an in-app notification for Admin and an email/WhatsApp placeholder function.
+
+Also provide visible admin contact info (email, phone placeholders).
+
+Implement basic form validation + success/error toasts.
+
+Public Reviews / Bookings page
+
+Public view for service reviews (also accessible via service detail pages).
+
+Header & Footer
+
+Global header with site nav links: Home, Services, About, Contact, Login/Register.
+
+Responsive mobile menu.
+
+Footer: quick links, social icons, small copyright notice, link to privacy policy.
+
+Account/profile link
+
+If JWT-authenticated, show user avatar / name in header and link to appropriate dashboard (Customer / Staff / Admin) depending on role.
+
+If not authenticated, show Login/Register buttons.
+
+Routing & SEO
+
+All public pages must use server-side rendering or static props where appropriate to ensure SEO (Next.js page-level decisions are fine, but make pages SEO-ready).
+
+Add /sitemap.xml and /robots.txt placeholders.
+
+Design & Accessibility
+
+Use shadcn/ui components for hero, cards, forms, buttons, and modals.
+
+Tailwind for responsive layout.
+
+Ensure forms and navigation are keyboard-accessible and use proper ARIA attributes.
+
+Integrations & behaviors
+
+Services, bookings, reviews must read from the existing Prisma-backed APIs (do not create a separate fake data source).
+
+Booking action from the public site must call the existing booking API and create a chat for the booking so real-time chat can begin.
+
+Contact form submissions must save to DB and notify admin via existing notification functions.
+
+All public API calls that require auth must use the existing JWT flow (reuse middleware).
+
+Missing DB model
+
+If ContactMessage or Review models do not exist, create them in Prisma with sensible fields and run migrations. Keep schema consistent with existing models (link to userId when present).
+
+Developer ergonomics
+
+Add example environment variables list and a README section describing how to set DATABASE_URL, JWT_SECRET, NEXT_PUBLIC_SOCKET_URL, and email/WhatsApp placeholders.
+
+Add a short note in the README explaining public pages were added and how booking flows connect to dashboards.
+
+Acceptance criteria (must pass):
+
+Visiting /, /services, /services/[id], /about, /contact renders proper pages and pulls dynamic data from the existing APIs.
+
+Booking from the public site successfully creates a booking and chat (verified by endpoint response and by seeing the new booking in Admin dashboard).
+
+Contact form stores messages in DB and creates an in-app admin notification.
+
+Header shows correct login/dashboard link based on JWT role.
+
+No dashboards are removed or overwritten.
+
+Execute these changes and return a summary list of created/modified files and the commands you ran (do not include code in the response). If anything cannot be completed because of missing secrets or DB access, list exactly which environment variables or secrets are required and why.

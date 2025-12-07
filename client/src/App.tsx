@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Switch, Route, Redirect, useLocation } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -29,6 +29,11 @@ import StaffTasksPage from "@/pages/staff/tasks";
 import StaffBookingDetailPage from "@/pages/staff/booking-detail";
 import StaffNotificationsPage from "@/pages/staff/notifications";
 import StaffSettingsPage from "@/pages/staff/settings";
+import PublicHomePage from "@/pages/public/home";
+import PublicServicesPage from "@/pages/public/services";
+import PublicServiceDetailPage from "@/pages/public/service-detail";
+import PublicAboutPage from "@/pages/public/about";
+import PublicContactPage from "@/pages/public/contact";
 
 function ProtectedRoute({ children, roles }: { children: React.ReactNode; roles?: string[] }) {
   const { user, isLoading } = useAuth();
@@ -105,7 +110,23 @@ function Router() {
   return (
     <Switch>
       <Route path="/">
-        <Redirect to="/login" />
+        <PublicHomePage />
+      </Route>
+
+      <Route path="/services">
+        <PublicServicesPage />
+      </Route>
+
+      <Route path="/services/:id">
+        <PublicServiceDetailPage />
+      </Route>
+
+      <Route path="/about">
+        <PublicAboutPage />
+      </Route>
+
+      <Route path="/contact">
+        <PublicContactPage />
       </Route>
 
       <Route path="/login">

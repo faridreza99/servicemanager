@@ -1180,5 +1180,177 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/public/services", async (req, res) => {
+    try {
+      const { category, search, page = "1", limit = "12" } = req.query;
+      const pageNum = Math.max(1, parseInt(page as string) || 1);
+      const limitNum = Math.min(50, Math.max(1, parseInt(limit as string) || 12));
+      const offset = (pageNum - 1) * limitNum;
+      
+      const [paginatedServices, total] = await Promise.all([
+        storage.getServicesWithRatings(
+          category as ServiceCategory | undefined,
+          search as string | undefined,
+          limitNum,
+          offset
+        ),
+        storage.getServicesCount(
+          category as ServiceCategory | undefined,
+          search as string | undefined
+        ),
+      ]);
+      
+      const totalPages = Math.ceil(total / limitNum);
+      
+      res.json({
+        services: paginatedServices,
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          total,
+          totalPages,
+          hasMore: pageNum < totalPages,
+        },
+      });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/public/services/featured", async (req, res) => {
+    try {
+      const { limit = "6" } = req.query;
+      const limitNum = Math.min(12, Math.max(1, parseInt(limit as string) || 6));
+      const services = await storage.getFeaturedServices(limitNum);
+      res.json(services);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/public/services/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const service = await storage.getService(id);
+      
+      if (!service || !service.isActive) {
+        return res.status(404).json({ message: "Service not found" });
+      }
+      
+      const reviews = await storage.getPublicReviewsByService(id);
+      const rating = await storage.getServiceRating(id);
+      
+      res.json({
+        ...service,
+        avgRating: rating.avgRating,
+        reviewCount: rating.reviewCount,
+        reviews,
+      });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/services/:id/reviews", authMiddleware, requireApproval, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { id } = req.params;
+      const service = await storage.getService(id);
+      
+      if (!service) {
+        return res.status(404).json({ message: "Service not found" });
+      }
+      
+      const hasCompleted = await storage.hasCompletedBooking(req.user!.id, id);
+      
+      if (!hasCompleted) {
+        return res.status(403).json({ message: "You can only review services you have completed" });
+      }
+      
+      const reviewData = {
+        serviceId: id,
+        userId: req.user!.id,
+        rating: Math.min(5, Math.max(1, parseInt(req.body.rating) || 5)),
+        title: req.body.title || null,
+        body: req.body.body || null,
+      };
+      
+      const review = await storage.createReview(reviewData);
+      res.status(201).json(review);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  const contactFormSchema = z.object({
+    name: z.string().min(1, "Name is required"),
+    email: z.string().email("Valid email is required"),
+    phone: z.string().optional(),
+    subject: z.string().min(1, "Subject is required"),
+    message: z.string().min(10, "Message must be at least 10 characters"),
+  });
+
+  app.post("/api/public/contact", async (req, res) => {
+    try {
+      const data = contactFormSchema.parse(req.body);
+      const contactMessage = await storage.createContactMessage(data);
+      
+      const admins = await storage.getUsersByRole("admin");
+      for (const admin of admins) {
+        await storage.createNotification({
+          userId: admin.id,
+          type: "message",
+          title: "New Contact Form Submission",
+          content: `${data.name} (${data.email}) sent a message: "${data.subject}"`,
+        });
+      }
+      
+      res.status(201).json({ 
+        message: "Thank you for your message. We'll get back to you soon.",
+        id: contactMessage.id,
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: error.errors[0].message });
+      }
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/admin/contact-messages", authMiddleware, requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+    try {
+      const messages = await storage.getContactMessages();
+      res.json(messages);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.patch("/api/admin/contact-messages/:id/status", authMiddleware, requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+    try {
+      const { id } = req.params;
+      const { status } = req.body;
+      
+      if (!["pending", "read", "replied", "closed"].includes(status)) {
+        return res.status(400).json({ message: "Invalid status" });
+      }
+      
+      const message = await storage.updateContactMessageStatus(id, status);
+      if (!message) {
+        return res.status(404).json({ message: "Message not found" });
+      }
+      
+      res.json(message);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   return httpServer;
 }

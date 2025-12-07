@@ -1,4 +1,4 @@
-import { eq, and, desc, or, ilike } from "drizzle-orm";
+import { eq, and, desc, or, ilike, avg, count, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "./db";
 import {
@@ -11,6 +11,8 @@ import {
   notifications,
   notificationSettings,
   siteSettings,
+  reviews,
+  contactMessages,
   type User,
   type InsertUser,
   type Service,
@@ -39,6 +41,13 @@ import {
   type ServiceCategory,
   type UpdateProfile,
   type NotificationSettingType,
+  type Review,
+  type InsertReview,
+  type ReviewWithUser,
+  type ContactMessage,
+  type InsertContactMessage,
+  type ContactMessageStatus,
+  type ServiceWithRating,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -93,6 +102,19 @@ export interface IStorage {
   getSiteSettings(): Promise<SiteSettingsData>;
   getSiteSetting(key: string): Promise<SiteSetting | undefined>;
   upsertSiteSetting(key: string, value: string | null): Promise<SiteSetting>;
+
+  getPublicReviewsByService(serviceId: string): Promise<ReviewWithUser[]>;
+  getServiceRating(serviceId: string): Promise<{ avgRating: number; reviewCount: number }>;
+  getServicesWithRatings(category?: ServiceCategory, search?: string, limit?: number, offset?: number): Promise<ServiceWithRating[]>;
+  getServicesCount(category?: ServiceCategory, search?: string): Promise<number>;
+  getFeaturedServices(limit?: number): Promise<ServiceWithRating[]>;
+  hasCompletedBooking(userId: string, serviceId: string): Promise<boolean>;
+  createReview(review: InsertReview): Promise<Review>;
+
+  getContactMessages(): Promise<ContactMessage[]>;
+  getContactMessage(id: string): Promise<ContactMessage | undefined>;
+  createContactMessage(message: InsertContactMessage): Promise<ContactMessage>;
+  updateContactMessageStatus(id: string, status: ContactMessageStatus): Promise<ContactMessage | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -507,6 +529,171 @@ export class DatabaseStorage implements IStorage {
     }
     const [created] = await db.insert(siteSettings).values({ key, value }).returning();
     return created;
+  }
+
+  async getPublicReviewsByService(serviceId: string): Promise<ReviewWithUser[]> {
+    const result = await db
+      .select()
+      .from(reviews)
+      .leftJoin(users, eq(reviews.userId, users.id))
+      .where(and(eq(reviews.serviceId, serviceId), eq(reviews.isPublished, true)))
+      .orderBy(desc(reviews.createdAt));
+    
+    return result.map((row) => ({
+      ...row.reviews,
+      user: row.users!,
+    }));
+  }
+
+  async getServiceRating(serviceId: string): Promise<{ avgRating: number; reviewCount: number }> {
+    const result = await db
+      .select({
+        avgRating: avg(reviews.rating),
+        reviewCount: count(reviews.id),
+      })
+      .from(reviews)
+      .where(and(eq(reviews.serviceId, serviceId), eq(reviews.isPublished, true)));
+    
+    return {
+      avgRating: result[0]?.avgRating ? Number(result[0].avgRating) : 0,
+      reviewCount: result[0]?.reviewCount || 0,
+    };
+  }
+
+  async getServicesWithRatings(category?: ServiceCategory, search?: string, limit?: number, offset?: number): Promise<ServiceWithRating[]> {
+    const conditions = [eq(services.isActive, true)];
+    
+    if (category) {
+      conditions.push(eq(services.category, category));
+    }
+    
+    if (search) {
+      conditions.push(
+        or(
+          ilike(services.name, `%${search}%`),
+          ilike(services.description, `%${search}%`)
+        )!
+      );
+    }
+    
+    const result = await db
+      .select({
+        id: services.id,
+        name: services.name,
+        description: services.description,
+        category: services.category,
+        isActive: services.isActive,
+        createdAt: services.createdAt,
+        updatedAt: services.updatedAt,
+        avgRating: sql<number>`COALESCE(AVG(CASE WHEN reviews.is_published = true THEN reviews.rating END), 0)`,
+        reviewCount: sql<number>`COUNT(CASE WHEN reviews.is_published = true THEN reviews.id END)`,
+      })
+      .from(services)
+      .leftJoin(reviews, eq(services.id, reviews.serviceId))
+      .where(and(...conditions))
+      .groupBy(services.id, services.name, services.description, services.category, services.isActive, services.createdAt, services.updatedAt)
+      .orderBy(services.name)
+      .limit(limit || 1000)
+      .offset(offset || 0);
+    
+    return result.map((row) => ({
+      ...row,
+      avgRating: Number(row.avgRating) || 0,
+      reviewCount: Number(row.reviewCount) || 0,
+    }));
+  }
+
+  async getServicesCount(category?: ServiceCategory, search?: string): Promise<number> {
+    const conditions = [eq(services.isActive, true)];
+    
+    if (category) {
+      conditions.push(eq(services.category, category));
+    }
+    
+    if (search) {
+      conditions.push(
+        or(
+          ilike(services.name, `%${search}%`),
+          ilike(services.description, `%${search}%`)
+        )!
+      );
+    }
+    
+    const result = await db
+      .select({ count: count(services.id) })
+      .from(services)
+      .where(and(...conditions));
+    
+    return result[0]?.count || 0;
+  }
+
+  async getFeaturedServices(limit: number = 6): Promise<ServiceWithRating[]> {
+    const result = await db
+      .select({
+        id: services.id,
+        name: services.name,
+        description: services.description,
+        category: services.category,
+        isActive: services.isActive,
+        createdAt: services.createdAt,
+        updatedAt: services.updatedAt,
+        avgRating: sql<number>`COALESCE(AVG(CASE WHEN reviews.is_published = true THEN reviews.rating END), 0)`,
+        reviewCount: sql<number>`COUNT(CASE WHEN reviews.is_published = true THEN reviews.id END)`,
+      })
+      .from(services)
+      .leftJoin(reviews, eq(services.id, reviews.serviceId))
+      .where(eq(services.isActive, true))
+      .groupBy(services.id, services.name, services.description, services.category, services.isActive, services.createdAt, services.updatedAt)
+      .orderBy(sql`COALESCE(AVG(CASE WHEN reviews.is_published = true THEN reviews.rating END), 0) DESC`)
+      .limit(limit);
+    
+    return result.map((row) => ({
+      ...row,
+      avgRating: Number(row.avgRating) || 0,
+      reviewCount: Number(row.reviewCount) || 0,
+    }));
+  }
+
+  async hasCompletedBooking(userId: string, serviceId: string): Promise<boolean> {
+    const result = await db
+      .select({ count: count(bookings.id) })
+      .from(bookings)
+      .where(
+        and(
+          eq(bookings.customerId, userId),
+          eq(bookings.serviceId, serviceId),
+          eq(bookings.status, "completed")
+        )
+      );
+    return (result[0]?.count || 0) > 0;
+  }
+
+  async createReview(review: InsertReview): Promise<Review> {
+    const [created] = await db.insert(reviews).values(review).returning();
+    return created;
+  }
+
+  async getContactMessages(): Promise<ContactMessage[]> {
+    return db.select().from(contactMessages).orderBy(desc(contactMessages.createdAt));
+  }
+
+  async getContactMessage(id: string): Promise<ContactMessage | undefined> {
+    const [message] = await db.select().from(contactMessages).where(eq(contactMessages.id, id));
+    return message;
+  }
+
+  async createContactMessage(message: InsertContactMessage): Promise<ContactMessage> {
+    const [created] = await db.insert(contactMessages).values(message).returning();
+    return created;
+  }
+
+  async updateContactMessageStatus(id: string, status: ContactMessageStatus): Promise<ContactMessage | undefined> {
+    const [message] = await db
+      .update(contactMessages)
+      .set({ status })
+      .where(eq(contactMessages.id, id))
+      .returning();
+    return message;
   }
 }
 
