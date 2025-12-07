@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { ArrowLeft, Download } from "lucide-react";
+import { io, Socket } from "socket.io-client";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { ChatInterface } from "@/components/chat-interface";
 import { Button } from "@/components/ui/button";
@@ -17,7 +18,7 @@ export default function AdminChatPage() {
   const [, setLocation] = useLocation();
   const { user } = useAuth();
   const { toast } = useToast();
-  const [socket, setSocket] = useState<WebSocket | null>(null);
+  const [socket, setSocket] = useState<Socket | null>(null);
 
   const { data: chat, isLoading: chatLoading } = useQuery<Chat>({
     queryKey: ["/api/chats", id],
@@ -40,18 +41,31 @@ export default function AdminChatPage() {
 
   useEffect(() => {
     if (!id) return;
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = `${protocol}//${window.location.host}/ws`;
-    const ws = new WebSocket(wsUrl);
+    const token = localStorage.getItem("token");
+    if (!token) return;
 
-    ws.onopen = () => { ws.send(JSON.stringify({ type: "joinChat", chatId: id, token: localStorage.getItem("token") })); };
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      if (data.type === "newMessage") queryClient.invalidateQueries({ queryKey: ["/api/chats", id, "messages"] });
-      if (data.type === "chatClosed") queryClient.invalidateQueries({ queryKey: ["/api/chats", id] });
+    const socketInstance = io({
+      path: "/ws",
+      auth: { token },
+    });
+
+    socketInstance.on("connect", () => {
+      socketInstance.emit("join_chat", id);
+    });
+
+    socketInstance.on("new_message", () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/chats", id, "messages"] });
+    });
+
+    socketInstance.on("chat_closed", () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/chats", id] });
+    });
+
+    setSocket(socketInstance);
+    return () => {
+      socketInstance.emit("leave_chat", id);
+      socketInstance.disconnect();
     };
-    setSocket(ws);
-    return () => { ws.close(); };
   }, [id]);
 
   const sendMessageMutation = useMutation({
