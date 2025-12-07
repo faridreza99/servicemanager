@@ -433,6 +433,15 @@ export async function registerRoutes(
         }
       }
 
+      // Auto-close chat when booking is completed
+      if (data.status === "completed") {
+        const chat = await storage.getChatByBooking(req.params.id);
+        if (chat && chat.isOpen) {
+          await storage.closeChat(chat.id);
+          io.to(`chat:${chat.id}`).emit("chat_closed", chat);
+        }
+      }
+
       res.json(booking);
     } catch (error) {
       if (error instanceof z.ZodError) {
