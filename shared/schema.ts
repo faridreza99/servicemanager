@@ -258,6 +258,25 @@ export const SERVICE_CATEGORIES: { value: ServiceCategory; label: string }[] = [
   { value: "other", label: "Other" },
 ];
 
+export const notificationSettingTypeEnum = pgEnum("notification_setting_type", ["email", "whatsapp"]);
+
+export const notificationSettings = pgTable("notification_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  type: notificationSettingTypeEnum("type").notNull().unique(),
+  enabled: boolean("enabled").notNull().default(false),
+  config: text("config"),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertNotificationSettingSchema = createInsertSchema(notificationSettings).omit({
+  id: true,
+  updatedAt: true,
+});
+
+export type NotificationSetting = typeof notificationSettings.$inferSelect;
+export type InsertNotificationSetting = z.infer<typeof insertNotificationSettingSchema>;
+export type NotificationSettingType = "email" | "whatsapp";
+
 export type BookingWithDetails = Booking & {
   customer: User;
   service: Service;

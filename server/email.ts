@@ -1,5 +1,6 @@
 import nodemailer from "nodemailer";
 import type { Transporter } from "nodemailer";
+import { storage } from "./storage";
 
 interface EmailConfig {
   host: string;
@@ -21,12 +22,14 @@ class EmailService {
   private transporter: Transporter | null = null;
   private config: EmailConfig | null = null;
   private isConfigured: boolean = false;
+  private lastConfigCheck: number = 0;
+  private configCheckInterval: number = 60000; // Check config every 60 seconds
 
   constructor() {
-    this.initialize();
+    this.initializeFromEnv();
   }
 
-  private initialize() {
+  private initializeFromEnv() {
     const host = process.env.SMTP_HOST;
     const port = process.env.SMTP_PORT;
     const user = process.env.SMTP_USER;
@@ -34,29 +37,71 @@ class EmailService {
     const from = process.env.SMTP_FROM;
 
     if (host && port && user && pass && from) {
-      this.config = {
+      this.setConfig({
         host,
         port: parseInt(port, 10),
         secure: parseInt(port, 10) === 465,
         user,
         pass,
         from,
-      };
-
-      this.transporter = nodemailer.createTransport({
-        host: this.config.host,
-        port: this.config.port,
-        secure: this.config.secure,
-        auth: {
-          user: this.config.user,
-          pass: this.config.pass,
-        },
       });
-
-      this.isConfigured = true;
-      console.log("Email service configured successfully");
+      console.log("Email service configured from environment variables");
     } else {
       console.log("Email service not configured - missing SMTP environment variables");
+    }
+  }
+
+  private setConfig(config: EmailConfig) {
+    this.config = config;
+    this.transporter = nodemailer.createTransport({
+      host: config.host,
+      port: config.port,
+      secure: config.secure,
+      auth: {
+        user: config.user,
+        pass: config.pass,
+      },
+    });
+    this.isConfigured = true;
+  }
+
+  async refreshConfigFromDatabase(): Promise<void> {
+    try {
+      const setting = await storage.getNotificationSettingByType("email");
+      if (setting && setting.enabled && setting.config) {
+        const dbConfig = JSON.parse(setting.config);
+        if (dbConfig.host && dbConfig.port && dbConfig.user && dbConfig.pass && dbConfig.from) {
+          this.setConfig({
+            host: dbConfig.host,
+            port: parseInt(dbConfig.port, 10),
+            secure: parseInt(dbConfig.port, 10) === 465,
+            user: dbConfig.user,
+            pass: dbConfig.pass,
+            from: dbConfig.from,
+          });
+          console.log("Email service configured from database settings");
+          return;
+        }
+      } else if (setting && !setting.enabled) {
+        this.isConfigured = false;
+        this.transporter = null;
+        this.config = null;
+        return;
+      }
+      
+      // Fall back to env vars if database config is incomplete
+      this.initializeFromEnv();
+    } catch (error) {
+      console.warn("Failed to load email config from database:", error);
+      this.initializeFromEnv();
+    }
+  }
+
+  private async ensureConfigFresh(): Promise<void> {
+    const now = Date.now();
+    if (now - this.lastConfigCheck > this.configCheckInterval) {
+      this.lastConfigCheck = now;
+      await this.refreshConfigFromDatabase();
     }
   }
 
@@ -65,6 +110,8 @@ class EmailService {
   }
 
   async sendEmail(options: SendEmailOptions): Promise<boolean> {
+    await this.ensureConfigFresh();
+    
     if (!this.transporter || !this.config) {
       return false;
     }

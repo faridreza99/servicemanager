@@ -1089,5 +1089,51 @@ export async function registerRoutes(
     res.json({ configured: cloudinaryService.isConfigured() });
   });
 
+  app.get("/api/admin/notification-settings", authMiddleware, requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+    try {
+      const settings = await storage.getNotificationSettings();
+      res.json(settings);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/admin/notification-settings/:type", authMiddleware, requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+    try {
+      const { type } = req.params;
+      if (type !== "email" && type !== "whatsapp") {
+        return res.status(400).json({ message: "Invalid notification type" });
+      }
+      const setting = await storage.getNotificationSettingByType(type);
+      if (!setting) {
+        return res.json({ type, enabled: false, config: null });
+      }
+      res.json(setting);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.put("/api/admin/notification-settings/:type", authMiddleware, requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+    try {
+      const { type } = req.params;
+      if (type !== "email" && type !== "whatsapp") {
+        return res.status(400).json({ message: "Invalid notification type" });
+      }
+      const { enabled, config } = req.body;
+      const setting = await storage.upsertNotificationSetting({
+        type,
+        enabled: enabled ?? false,
+        config: config ? JSON.stringify(config) : null,
+      });
+      res.json(setting);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   return httpServer;
 }

@@ -9,6 +9,7 @@ import {
   messages,
   tasks,
   notifications,
+  notificationSettings,
   type User,
   type InsertUser,
   type Service,
@@ -23,6 +24,8 @@ import {
   type InsertTask,
   type Notification,
   type InsertNotification,
+  type NotificationSetting,
+  type InsertNotificationSetting,
   type BookingWithDetails,
   type MessageWithSender,
   type TaskWithDetails,
@@ -31,6 +34,7 @@ import {
   type TaskStatus,
   type ServiceCategory,
   type UpdateProfile,
+  type NotificationSettingType,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -77,6 +81,10 @@ export interface IStorage {
   createNotification(notification: InsertNotification): Promise<Notification>;
   markNotificationRead(id: string): Promise<Notification | undefined>;
   markAllNotificationsRead(userId: string): Promise<void>;
+
+  getNotificationSettings(): Promise<NotificationSetting[]>;
+  getNotificationSettingByType(type: NotificationSettingType): Promise<NotificationSetting | undefined>;
+  upsertNotificationSetting(setting: InsertNotificationSetting): Promise<NotificationSetting>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -433,6 +441,29 @@ export class DatabaseStorage implements IStorage {
       .update(notifications)
       .set({ read: true })
       .where(eq(notifications.userId, userId));
+  }
+
+  async getNotificationSettings(): Promise<NotificationSetting[]> {
+    return db.select().from(notificationSettings);
+  }
+
+  async getNotificationSettingByType(type: NotificationSettingType): Promise<NotificationSetting | undefined> {
+    const [setting] = await db.select().from(notificationSettings).where(eq(notificationSettings.type, type));
+    return setting;
+  }
+
+  async upsertNotificationSetting(setting: InsertNotificationSetting): Promise<NotificationSetting> {
+    const existing = await this.getNotificationSettingByType(setting.type);
+    if (existing) {
+      const [updated] = await db
+        .update(notificationSettings)
+        .set({ ...setting, updatedAt: new Date() })
+        .where(eq(notificationSettings.type, setting.type))
+        .returning();
+      return updated;
+    }
+    const [created] = await db.insert(notificationSettings).values(setting).returning();
+    return created;
   }
 }
 

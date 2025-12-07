@@ -1,6 +1,6 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Settings, User, Lock, Palette, Mail, Phone, Camera, Loader2, CheckCircle, XCircle } from "lucide-react";
+import { Settings, User, Lock, Palette, Mail, Phone, Camera, Loader2, CheckCircle, XCircle, Eye, EyeOff } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
   Form,
@@ -18,9 +19,10 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from "@/components/ui/form";
 import { useAuth, getAuthHeader } from "@/lib/auth";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useTheme } from "@/lib/theme";
 
@@ -38,8 +40,33 @@ const profileSchema = z.object({
   phone: z.string().optional(),
 });
 
+const emailSettingsSchema = z.object({
+  enabled: z.boolean(),
+  host: z.string().optional(),
+  port: z.string().optional(),
+  user: z.string().optional(),
+  pass: z.string().optional(),
+  from: z.string().optional(),
+});
+
+const whatsappSettingsSchema = z.object({
+  enabled: z.boolean(),
+  phoneNumberId: z.string().optional(),
+  accessToken: z.string().optional(),
+  apiVersion: z.string().optional(),
+});
+
 type ChangePasswordFormData = z.infer<typeof changePasswordSchema>;
 type ProfileFormData = z.infer<typeof profileSchema>;
+type EmailSettingsFormData = z.infer<typeof emailSettingsSchema>;
+type WhatsappSettingsFormData = z.infer<typeof whatsappSettingsSchema>;
+
+interface NotificationSetting {
+  id?: string;
+  type: string;
+  enabled: boolean;
+  config: string | null;
+}
 
 interface SystemStatus {
   email: { enabled: boolean; configured: boolean };
@@ -52,12 +79,32 @@ export default function AdminSettingsPage() {
   const { theme, setTheme } = useTheme();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [showEmailPass, setShowEmailPass] = useState(false);
+  const [showWhatsappToken, setShowWhatsappToken] = useState(false);
 
   const { data: systemStatus } = useQuery<SystemStatus>({
     queryKey: ["/api/system/status"],
     queryFn: async () => {
       const res = await fetch("/api/system/status", { headers: getAuthHeader() });
       if (!res.ok) throw new Error("Failed to fetch system status");
+      return res.json();
+    },
+  });
+
+  const { data: emailSetting } = useQuery<NotificationSetting>({
+    queryKey: ["/api/admin/notification-settings", "email"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/notification-settings/email", { headers: getAuthHeader() });
+      if (!res.ok) throw new Error("Failed to fetch email settings");
+      return res.json();
+    },
+  });
+
+  const { data: whatsappSetting } = useQuery<NotificationSetting>({
+    queryKey: ["/api/admin/notification-settings", "whatsapp"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/notification-settings/whatsapp", { headers: getAuthHeader() });
+      if (!res.ok) throw new Error("Failed to fetch whatsapp settings");
       return res.json();
     },
   });
@@ -78,6 +125,54 @@ export default function AdminSettingsPage() {
       phone: user?.phone || "",
     },
   });
+
+  const emailForm = useForm<EmailSettingsFormData>({
+    resolver: zodResolver(emailSettingsSchema),
+    defaultValues: {
+      enabled: false,
+      host: "",
+      port: "587",
+      user: "",
+      pass: "",
+      from: "",
+    },
+  });
+
+  const whatsappForm = useForm<WhatsappSettingsFormData>({
+    resolver: zodResolver(whatsappSettingsSchema),
+    defaultValues: {
+      enabled: false,
+      phoneNumberId: "",
+      accessToken: "",
+      apiVersion: "v18.0",
+    },
+  });
+
+  useEffect(() => {
+    if (emailSetting) {
+      const config = emailSetting.config ? JSON.parse(emailSetting.config) : {};
+      emailForm.reset({
+        enabled: emailSetting.enabled,
+        host: config.host || "",
+        port: config.port || "587",
+        user: config.user || "",
+        pass: config.pass || "",
+        from: config.from || "",
+      });
+    }
+  }, [emailSetting]);
+
+  useEffect(() => {
+    if (whatsappSetting) {
+      const config = whatsappSetting.config ? JSON.parse(whatsappSetting.config) : {};
+      whatsappForm.reset({
+        enabled: whatsappSetting.enabled,
+        phoneNumberId: config.phoneNumberId || "",
+        accessToken: config.accessToken || "",
+        apiVersion: config.apiVersion || "v18.0",
+      });
+    }
+  }, [whatsappSetting]);
 
   const changePasswordMutation = useMutation({
     mutationFn: async (data: { currentPassword: string; newPassword: string }) => {
@@ -113,6 +208,36 @@ export default function AdminSettingsPage() {
         description: error.message || "Failed to update profile", 
         variant: "destructive" 
       });
+    },
+  });
+
+  const saveEmailSettingsMutation = useMutation({
+    mutationFn: async (data: EmailSettingsFormData) => {
+      const { enabled, ...config } = data;
+      return apiRequest("PUT", "/api/admin/notification-settings/email", { enabled, config });
+    },
+    onSuccess: () => {
+      toast({ title: "Success", description: "Email settings saved successfully" });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/notification-settings", "email"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/system/status"] });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message || "Failed to save email settings", variant: "destructive" });
+    },
+  });
+
+  const saveWhatsappSettingsMutation = useMutation({
+    mutationFn: async (data: WhatsappSettingsFormData) => {
+      const { enabled, ...config } = data;
+      return apiRequest("PUT", "/api/admin/notification-settings/whatsapp", { enabled, config });
+    },
+    onSuccess: () => {
+      toast({ title: "Success", description: "WhatsApp settings saved successfully" });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/notification-settings", "whatsapp"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/system/status"] });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message || "Failed to save WhatsApp settings", variant: "destructive" });
     },
   });
 
@@ -412,58 +537,222 @@ export default function AdminSettingsPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Settings className="h-5 w-5" />
-              Notification Services
+              <Mail className="h-5 w-5" />
+              Email Settings (SMTP)
             </CardTitle>
             <CardDescription>
-              Status of notification integrations
+              Configure SMTP server for email notifications
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between gap-4 p-3 rounded-lg bg-accent/30 flex-wrap">
-              <div className="flex items-center gap-3">
-                <Mail className="h-5 w-5 text-muted-foreground" />
-                <div>
-                  <p className="font-medium">Email Notifications</p>
-                  <p className="text-sm text-muted-foreground">
-                    SMTP email service for notifications
-                  </p>
+          <CardContent>
+            <Form {...emailForm}>
+              <form onSubmit={emailForm.handleSubmit((data) => saveEmailSettingsMutation.mutate(data))} className="space-y-4">
+                <FormField
+                  control={emailForm.control}
+                  name="enabled"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
+                      <div className="space-y-0.5">
+                        <FormLabel>Enable Email Notifications</FormLabel>
+                        <FormDescription>Send email notifications to users</FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                          data-testid="switch-email-enabled"
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={emailForm.control}
+                    name="host"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>SMTP Host</FormLabel>
+                        <FormControl>
+                          <Input placeholder="smtp.example.com" data-testid="input-smtp-host" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={emailForm.control}
+                    name="port"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>SMTP Port</FormLabel>
+                        <FormControl>
+                          <Input placeholder="587" data-testid="input-smtp-port" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 </div>
-              </div>
-              {systemStatus?.email.configured ? (
-                <Badge variant="default" className="gap-1" data-testid="badge-email-status">
-                  <CheckCircle className="h-3 w-3" />
-                  Connected
-                </Badge>
-              ) : (
-                <Badge variant="outline" className="gap-1" data-testid="badge-email-status">
-                  <XCircle className="h-3 w-3" />
-                  Not Configured
-                </Badge>
-              )}
-            </div>
-            <div className="flex items-center justify-between gap-4 p-3 rounded-lg bg-accent/30 flex-wrap">
-              <div className="flex items-center gap-3">
-                <Phone className="h-5 w-5 text-muted-foreground" />
-                <div>
-                  <p className="font-medium">WhatsApp Notifications</p>
-                  <p className="text-sm text-muted-foreground">
-                    WhatsApp Business API integration
-                  </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={emailForm.control}
+                    name="user"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>SMTP Username</FormLabel>
+                        <FormControl>
+                          <Input placeholder="user@example.com" data-testid="input-smtp-user" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={emailForm.control}
+                    name="pass"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>SMTP Password</FormLabel>
+                        <FormControl>
+                          <div className="relative">
+                            <Input
+                              type={showEmailPass ? "text" : "password"}
+                              placeholder="Password"
+                              data-testid="input-smtp-pass"
+                              {...field}
+                            />
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="absolute right-0 top-0 h-full"
+                              onClick={() => setShowEmailPass(!showEmailPass)}
+                              data-testid="button-toggle-smtp-pass"
+                            >
+                              {showEmailPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </Button>
+                          </div>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 </div>
-              </div>
-              {systemStatus?.whatsapp.configured ? (
-                <Badge variant="default" className="gap-1" data-testid="badge-whatsapp-status">
-                  <CheckCircle className="h-3 w-3" />
-                  Connected
-                </Badge>
-              ) : (
-                <Badge variant="outline" className="gap-1" data-testid="badge-whatsapp-status">
-                  <XCircle className="h-3 w-3" />
-                  Not Configured
-                </Badge>
-              )}
-            </div>
+                <FormField
+                  control={emailForm.control}
+                  name="from"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>From Address</FormLabel>
+                      <FormControl>
+                        <Input placeholder="noreply@example.com" data-testid="input-smtp-from" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <Button type="submit" disabled={saveEmailSettingsMutation.isPending} data-testid="button-save-email">
+                  {saveEmailSettingsMutation.isPending ? "Saving..." : "Save Email Settings"}
+                </Button>
+              </form>
+            </Form>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Phone className="h-5 w-5" />
+              WhatsApp Settings
+            </CardTitle>
+            <CardDescription>
+              Configure WhatsApp Business API for notifications
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Form {...whatsappForm}>
+              <form onSubmit={whatsappForm.handleSubmit((data) => saveWhatsappSettingsMutation.mutate(data))} className="space-y-4">
+                <FormField
+                  control={whatsappForm.control}
+                  name="enabled"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
+                      <div className="space-y-0.5">
+                        <FormLabel>Enable WhatsApp Notifications</FormLabel>
+                        <FormDescription>Send WhatsApp messages to users</FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                          data-testid="switch-whatsapp-enabled"
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={whatsappForm.control}
+                  name="phoneNumberId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Phone Number ID</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Your WhatsApp Business Phone Number ID" data-testid="input-whatsapp-phone-id" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={whatsappForm.control}
+                  name="accessToken"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Access Token</FormLabel>
+                      <FormControl>
+                        <div className="relative">
+                          <Input
+                            type={showWhatsappToken ? "text" : "password"}
+                            placeholder="WhatsApp Cloud API Access Token"
+                            data-testid="input-whatsapp-token"
+                            {...field}
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="absolute right-0 top-0 h-full"
+                            onClick={() => setShowWhatsappToken(!showWhatsappToken)}
+                            data-testid="button-toggle-whatsapp-token"
+                          >
+                            {showWhatsappToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </Button>
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={whatsappForm.control}
+                  name="apiVersion"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>API Version</FormLabel>
+                      <FormControl>
+                        <Input placeholder="v18.0" data-testid="input-whatsapp-api-version" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <Button type="submit" disabled={saveWhatsappSettingsMutation.isPending} data-testid="button-save-whatsapp">
+                  {saveWhatsappSettingsMutation.isPending ? "Saving..." : "Save WhatsApp Settings"}
+                </Button>
+              </form>
+            </Form>
           </CardContent>
         </Card>
       </div>

@@ -1,3 +1,5 @@
+import { storage } from "./storage";
+
 interface WhatsAppConfig {
   phoneNumberId: string;
   accessToken: string;
@@ -13,27 +15,70 @@ class WhatsAppService {
   private config: WhatsAppConfig | null = null;
   private isConfigured: boolean = false;
   private apiUrl: string = "";
+  private lastConfigCheck: number = 0;
+  private configCheckInterval: number = 60000; // Check config every 60 seconds
 
   constructor() {
-    this.initialize();
+    this.initializeFromEnv();
   }
 
-  private initialize() {
+  private initializeFromEnv() {
     const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
     const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
     const apiVersion = process.env.WHATSAPP_API_VERSION || "v18.0";
 
     if (phoneNumberId && accessToken) {
-      this.config = {
+      this.setConfig({
         phoneNumberId,
         accessToken,
         apiVersion,
-      };
-      this.apiUrl = `https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`;
-      this.isConfigured = true;
-      console.log("WhatsApp service configured successfully");
+      });
+      console.log("WhatsApp service configured from environment variables");
     } else {
       console.log("WhatsApp service not configured - missing environment variables");
+    }
+  }
+
+  private setConfig(config: WhatsAppConfig) {
+    this.config = config;
+    this.apiUrl = `https://graph.facebook.com/${config.apiVersion}/${config.phoneNumberId}/messages`;
+    this.isConfigured = true;
+  }
+
+  async refreshConfigFromDatabase(): Promise<void> {
+    try {
+      const setting = await storage.getNotificationSettingByType("whatsapp");
+      if (setting && setting.enabled && setting.config) {
+        const dbConfig = JSON.parse(setting.config);
+        if (dbConfig.phoneNumberId && dbConfig.accessToken) {
+          this.setConfig({
+            phoneNumberId: dbConfig.phoneNumberId,
+            accessToken: dbConfig.accessToken,
+            apiVersion: dbConfig.apiVersion || "v18.0",
+          });
+          console.log("WhatsApp service configured from database settings");
+          return;
+        }
+      } else if (setting && !setting.enabled) {
+        this.isConfigured = false;
+        this.config = null;
+        this.apiUrl = "";
+        return;
+      }
+      
+      // Fall back to env vars if database config is incomplete
+      this.initializeFromEnv();
+    } catch (error) {
+      console.warn("Failed to load WhatsApp config from database:", error);
+      this.initializeFromEnv();
+    }
+  }
+
+  private async ensureConfigFresh(): Promise<void> {
+    const now = Date.now();
+    if (now - this.lastConfigCheck > this.configCheckInterval) {
+      this.lastConfigCheck = now;
+      await this.refreshConfigFromDatabase();
     }
   }
 
@@ -42,6 +87,8 @@ class WhatsAppService {
   }
 
   async sendMessage(options: SendWhatsAppOptions): Promise<boolean> {
+    await this.ensureConfigFresh();
+    
     if (!this.config) {
       return false;
     }
