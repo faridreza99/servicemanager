@@ -3,7 +3,7 @@ import { Send, Lock, DollarSign, CheckCircle, Paperclip, FileText, Image, Loader
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -186,6 +186,9 @@ export function ChatInterface({
                   data-testid={`message-${msg.id}`}
                 >
                   <Avatar className="h-8 w-8 flex-shrink-0">
+                    {msg.sender.profilePhoto && (
+                      <AvatarImage src={msg.sender.profilePhoto} alt={msg.sender.name} />
+                    )}
                     <AvatarFallback 
                       className={`text-xs ${isOwn ? "bg-primary text-primary-foreground" : "bg-secondary"}`}
                     >

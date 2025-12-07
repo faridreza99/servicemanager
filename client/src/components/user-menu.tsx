@@ -2,7 +2,7 @@ import { useLocation } from "wouter";
 import { LogOut, User, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -57,6 +57,9 @@ export function UserMenu() {
           data-testid="button-user-menu"
         >
           <Avatar className="h-8 w-8">
+            {user.profilePhoto && (
+              <AvatarImage src={user.profilePhoto} alt={user.name} />
+            )}
             <AvatarFallback className="text-sm bg-primary text-primary-foreground">
               {getInitials(user.name)}
             </AvatarFallback>
