@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -194,6 +194,45 @@ function AboutPageEditor({
     description: content.cta?.description || "Join hundreds of satisfied customers who trust us with their IT needs.",
     badges: content.cta?.badges || ["ISO Certified", "24/7 Support", "Money-Back Guarantee", "Secure & Reliable"],
   });
+
+  useEffect(() => {
+    if (content.mission) {
+      setMission({
+        title: content.mission.title || "Our Mission",
+        description: content.mission.description || "We believe that technology should empower, not complicate. Our mission is to make professional IT services accessible to everyone.",
+        secondaryDescription: content.mission.secondaryDescription || "We bridge the gap between complex technology challenges and simple, effective solutions.",
+        highlights: content.mission.highlights || ["Certified IT professionals", "Transparent pricing", "Real-time communication", "Quality guaranteed"],
+      });
+    }
+  }, [content.mission]);
+
+  useEffect(() => {
+    if (content.values) {
+      setValues(content.values);
+    }
+  }, [content.values]);
+
+  useEffect(() => {
+    if (content.team) {
+      setTeam(content.team);
+    }
+  }, [content.team]);
+
+  useEffect(() => {
+    if (content.stats) {
+      setStats(content.stats);
+    }
+  }, [content.stats]);
+
+  useEffect(() => {
+    if (content.cta) {
+      setCta({
+        title: content.cta.title || "Ready to Work With Us?",
+        description: content.cta.description || "Join hundreds of satisfied customers who trust us with their IT needs.",
+        badges: content.cta.badges || ["ISO Certified", "24/7 Support", "Money-Back Guarantee", "Secure & Reliable"],
+      });
+    }
+  }, [content.cta]);
 
   const addTeamMember = () => {
     setTeam([...team, { name: "", role: "", initials: "" }]);
@@ -540,6 +579,22 @@ function ContactPageEditor({
       { day: "Sunday", hours: "Closed" },
     ]
   );
+
+  useEffect(() => {
+    if (content.contactInfo) {
+      setContactInfo({
+        email: content.contactInfo.email || "support@example.com",
+        phone: content.contactInfo.phone || "+1 (555) 123-4567",
+        address: content.contactInfo.address || "123 Tech Street, Silicon Valley, CA 94000",
+      });
+    }
+  }, [content.contactInfo]);
+
+  useEffect(() => {
+    if (content.businessHours) {
+      setBusinessHours(content.businessHours);
+    }
+  }, [content.businessHours]);
 
   const addBusinessHour = () => {
     setBusinessHours([...businessHours, { day: "", hours: "" }]);
