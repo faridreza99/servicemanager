@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, Lock, DollarSign, X, Paperclip, FileText, Image } from "lucide-react";
+import { Send, Lock, DollarSign, X, Paperclip, FileText, Image, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -10,9 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import type { MessageWithSender, UserRole } from "@shared/schema";
 import { formatDistanceToNow } from "date-fns";
-import { useAuth } from "@/lib/auth";
-import { ObjectUploader } from "@/components/ObjectUploader";
-import { apiRequest } from "@/lib/queryClient";
+import { useAuth, getAuthHeader } from "@/lib/auth";
 
 interface ChatInterfaceProps {
   messages: MessageWithSender[];
@@ -63,30 +61,41 @@ export function ChatInterface({
   const [attachmentUrl, setAttachmentUrl] = useState<string | null>(null);
   const [attachmentType, setAttachmentType] = useState<string | null>(null);
   const [attachmentName, setAttachmentName] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const pendingStoragePathRef = useRef<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleGetUploadParameters = async () => {
-    const response = await apiRequest("POST", "/api/objects/upload");
-    const data = await response.json();
-    pendingStoragePathRef.current = data.storagePath;
-    return {
-      method: "PUT" as const,
-      url: data.uploadURL,
-    };
-  };
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-  const handleUploadComplete = (result: any) => {
-    if (result.successful && result.successful.length > 0) {
-      const uploadedFile = result.successful[0];
-      const storagePath = pendingStoragePathRef.current;
-      
-      if (storagePath) {
-        setAttachmentUrl(storagePath);
-        setAttachmentType(uploadedFile.type || "application/octet-stream");
-        setAttachmentName(uploadedFile.name || "file");
+    setIsUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await fetch("/api/upload/cloudinary", {
+        method: "POST",
+        headers: getAuthHeader(),
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Failed to upload file");
       }
-      pendingStoragePathRef.current = null;
+
+      const data = await response.json();
+      setAttachmentUrl(data.url);
+      setAttachmentType(file.type || "application/octet-stream");
+      setAttachmentName(file.name);
+    } catch (error) {
+      console.error("Upload failed:", error);
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
     }
   };
 
@@ -336,27 +345,40 @@ export function ChatInterface({
         )}
 
         <div className="flex gap-2">
-          <ObjectUploader
-            maxNumberOfFiles={1}
-            maxFileSize={10485760}
-            onGetUploadParameters={handleGetUploadParameters}
-            onComplete={handleUploadComplete}
-            disabled={isSending}
+          <input
+            ref={fileInputRef}
+            type="file"
+            className="hidden"
+            onChange={handleFileSelect}
+            accept="image/*,.pdf,.doc,.docx,.txt"
+            data-testid="input-file"
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isSending || isUploading}
+            data-testid="button-attach-file"
           >
-            <Paperclip className="h-4 w-4" />
-          </ObjectUploader>
+            {isUploading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Paperclip className="h-4 w-4" />
+            )}
+          </Button>
           <Input
             placeholder={isQuotation ? "Add a description (optional)" : "Type a message..."}
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             onKeyDown={handleKeyDown}
-            disabled={isSending}
+            disabled={isSending || isUploading}
             className="flex-1"
             data-testid="input-message"
           />
           <Button 
             onClick={handleSend} 
-            disabled={isSending || (!message.trim() && !attachmentUrl && (!isQuotation || !quotationAmount))}
+            disabled={isSending || isUploading || (!message.trim() && !attachmentUrl && (!isQuotation || !quotationAmount))}
             data-testid="button-send-message"
           >
             <Send className="h-4 w-4" />

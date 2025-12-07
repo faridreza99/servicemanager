@@ -26,8 +26,10 @@ import {
 } from "@shared/schema";
 import { z } from "zod";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
+import { cloudinaryService } from "./cloudinary";
 import { emailService } from "./email";
 import { whatsappService } from "./whatsapp";
+import multer from "multer";
 
 const updateBookingStatusSchema = z.object({
   status: z.enum(bookingStatusEnum.enumValues),
@@ -959,62 +961,36 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/objects/upload", authMiddleware, requireApproval, async (req: AuthenticatedRequest, res) => {
+  const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+
+  app.post("/api/upload/cloudinary", authMiddleware, requireApproval, upload.single("file"), async (req: AuthenticatedRequest, res) => {
     try {
-      const objectStorageService = new ObjectStorageService();
-      const { uploadURL, storagePath } = await objectStorageService.getObjectEntityUploadURL();
-      res.json({ uploadURL, storagePath });
+      if (!cloudinaryService.isConfigured()) {
+        return res.status(503).json({ message: "Cloudinary is not configured. Please add CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET." });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ message: "No file provided" });
+      }
+
+      const result = await cloudinaryService.uploadFromBuffer(req.file.buffer, {
+        resource_type: "auto",
+      });
+
+      res.json({
+        url: result.secure_url,
+        publicId: result.public_id,
+        resourceType: result.resource_type,
+        format: result.format,
+      });
     } catch (error) {
-      console.error("Error getting upload URL:", error);
-      res.status(500).json({ message: "Failed to get upload URL. Object storage may not be configured." });
+      console.error("Error uploading to Cloudinary:", error);
+      res.status(500).json({ message: "Failed to upload file" });
     }
   });
 
-  app.get("/objects/:objectPath(*)", authMiddleware, async (req: AuthenticatedRequest, res) => {
-    try {
-      const user = req.user!;
-      
-      const rawPath = decodeURIComponent(req.path);
-      const pathPattern = /^\/objects\/uploads\/[a-f0-9-]{36}$/;
-      if (!pathPattern.test(rawPath)) {
-        return res.sendStatus(404);
-      }
-      const normalizedPath = rawPath.replace(/\/+/g, '/');
-      
-      const messageWithAttachment = await storage.getMessageByAttachmentUrl(normalizedPath);
-      if (!messageWithAttachment) {
-        return res.sendStatus(404);
-      }
-      
-      const chat = await storage.getChat(messageWithAttachment.chatId);
-      if (!chat) {
-        return res.sendStatus(404);
-      }
-      
-      const booking = await storage.getBooking(chat.bookingId);
-      if (!booking) {
-        return res.sendStatus(404);
-      }
-      
-      const isAuthorized = 
-        user.role === "admin" ||
-        booking.customerId === user.userId ||
-        booking.assignedStaffId === user.userId;
-      
-      if (!isAuthorized) {
-        return res.sendStatus(403);
-      }
-      
-      const objectStorageService = new ObjectStorageService();
-      const objectFile = await objectStorageService.getObjectEntityFile(normalizedPath);
-      objectStorageService.downloadObject(objectFile, res);
-    } catch (error) {
-      console.error("Error serving object:", error);
-      if (error instanceof ObjectNotFoundError) {
-        return res.sendStatus(404);
-      }
-      return res.sendStatus(500);
-    }
+  app.get("/api/upload/status", authMiddleware, async (req: AuthenticatedRequest, res) => {
+    res.json({ configured: cloudinaryService.isConfigured() });
   });
 
   return httpServer;
