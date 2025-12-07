@@ -309,24 +309,32 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getTasks(): Promise<TaskWithDetails[]> {
+    const staffUsers = alias(users, "staffUsers");
+    const customerUsers = alias(users, "customerUsers");
     const result = await db
       .select()
       .from(tasks)
       .leftJoin(bookings, eq(tasks.bookingId, bookings.id))
-      .leftJoin(users, eq(tasks.staffId, users.id))
+      .leftJoin(staffUsers, eq(tasks.staffId, staffUsers.id))
+      .leftJoin(customerUsers, eq(bookings.customerId, customerUsers.id))
       .leftJoin(services, eq(bookings.serviceId, services.id))
+      .leftJoin(chats, eq(bookings.id, chats.bookingId))
       .orderBy(desc(tasks.createdAt));
 
     return this.mapTasksWithDetails(result);
   }
 
   async getTasksByStaff(staffId: string): Promise<TaskWithDetails[]> {
+    const staffUsers = alias(users, "staffUsers");
+    const customerUsers = alias(users, "customerUsers");
     const result = await db
       .select()
       .from(tasks)
       .leftJoin(bookings, eq(tasks.bookingId, bookings.id))
-      .leftJoin(users, eq(tasks.staffId, users.id))
+      .leftJoin(staffUsers, eq(tasks.staffId, staffUsers.id))
+      .leftJoin(customerUsers, eq(bookings.customerId, customerUsers.id))
       .leftJoin(services, eq(bookings.serviceId, services.id))
+      .leftJoin(chats, eq(bookings.id, chats.bookingId))
       .where(eq(tasks.staffId, staffId))
       .orderBy(desc(tasks.createdAt));
 
@@ -334,12 +342,16 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getTask(id: string): Promise<TaskWithDetails | undefined> {
+    const staffUsers = alias(users, "staffUsers");
+    const customerUsers = alias(users, "customerUsers");
     const result = await db
       .select()
       .from(tasks)
       .leftJoin(bookings, eq(tasks.bookingId, bookings.id))
-      .leftJoin(users, eq(tasks.staffId, users.id))
+      .leftJoin(staffUsers, eq(tasks.staffId, staffUsers.id))
+      .leftJoin(customerUsers, eq(bookings.customerId, customerUsers.id))
       .leftJoin(services, eq(bookings.serviceId, services.id))
+      .leftJoin(chats, eq(bookings.id, chats.bookingId))
       .where(eq(tasks.id, id));
 
     if (result.length === 0) return undefined;
@@ -352,9 +364,10 @@ export class DatabaseStorage implements IStorage {
       booking: {
         ...row.bookings,
         service: row.services,
-        customer: row.users,
+        customer: row.customerUsers,
+        chat: row.chats || undefined,
       },
-      staff: row.users!,
+      staff: row.staffUsers!,
     }));
   }
 
