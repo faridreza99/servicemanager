@@ -10,6 +10,7 @@ import {
   tasks,
   notifications,
   notificationSettings,
+  siteSettings,
   type User,
   type InsertUser,
   type Service,
@@ -26,6 +27,9 @@ import {
   type InsertNotification,
   type NotificationSetting,
   type InsertNotificationSetting,
+  type SiteSetting,
+  type InsertSiteSetting,
+  type SiteSettingsData,
   type BookingWithDetails,
   type MessageWithSender,
   type TaskWithDetails,
@@ -85,6 +89,10 @@ export interface IStorage {
   getNotificationSettings(): Promise<NotificationSetting[]>;
   getNotificationSettingByType(type: NotificationSettingType): Promise<NotificationSetting | undefined>;
   upsertNotificationSetting(setting: InsertNotificationSetting): Promise<NotificationSetting>;
+
+  getSiteSettings(): Promise<SiteSettingsData>;
+  getSiteSetting(key: string): Promise<SiteSetting | undefined>;
+  upsertSiteSetting(key: string, value: string | null): Promise<SiteSetting>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -463,6 +471,41 @@ export class DatabaseStorage implements IStorage {
       return updated;
     }
     const [created] = await db.insert(notificationSettings).values(setting).returning();
+    return created;
+  }
+
+  async getSiteSettings(): Promise<SiteSettingsData> {
+    const settings = await db.select().from(siteSettings);
+    const settingsMap: Record<string, string> = {};
+    settings.forEach(s => {
+      if (s.value) settingsMap[s.key] = s.value;
+    });
+    return {
+      siteName: settingsMap.siteName || "IT Service Management",
+      siteDescription: settingsMap.siteDescription || "Professional IT service management platform",
+      logoUrl: settingsMap.logoUrl || "",
+      faviconUrl: settingsMap.faviconUrl || "",
+      metaTitle: settingsMap.metaTitle || "IT Service Management",
+      metaDescription: settingsMap.metaDescription || "Book and manage IT services with ease",
+    };
+  }
+
+  async getSiteSetting(key: string): Promise<SiteSetting | undefined> {
+    const [setting] = await db.select().from(siteSettings).where(eq(siteSettings.key, key));
+    return setting;
+  }
+
+  async upsertSiteSetting(key: string, value: string | null): Promise<SiteSetting> {
+    const existing = await this.getSiteSetting(key);
+    if (existing) {
+      const [updated] = await db
+        .update(siteSettings)
+        .set({ value, updatedAt: new Date() })
+        .where(eq(siteSettings.key, key))
+        .returning();
+      return updated;
+    }
+    const [created] = await db.insert(siteSettings).values({ key, value }).returning();
     return created;
   }
 }

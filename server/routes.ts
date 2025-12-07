@@ -1135,5 +1135,50 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/site-settings", async (req, res) => {
+    try {
+      const settings = await storage.getSiteSettings();
+      res.json(settings);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/admin/site-settings", authMiddleware, requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+    try {
+      const settings = await storage.getSiteSettings();
+      res.json(settings);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.put("/api/admin/site-settings", authMiddleware, requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+    try {
+      const { siteName, siteDescription, logoUrl, faviconUrl, metaTitle, metaDescription } = req.body;
+      
+      const settingsToUpdate: { key: string; value: string | null }[] = [
+        { key: "siteName", value: siteName ?? null },
+        { key: "siteDescription", value: siteDescription ?? null },
+        { key: "logoUrl", value: logoUrl ?? null },
+        { key: "faviconUrl", value: faviconUrl ?? null },
+        { key: "metaTitle", value: metaTitle ?? null },
+        { key: "metaDescription", value: metaDescription ?? null },
+      ];
+
+      for (const setting of settingsToUpdate) {
+        await storage.upsertSiteSetting(setting.key, setting.value);
+      }
+
+      const updatedSettings = await storage.getSiteSettings();
+      res.json(updatedSettings);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   return httpServer;
 }

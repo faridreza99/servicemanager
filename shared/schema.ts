@@ -292,3 +292,27 @@ export type TaskWithDetails = Task & {
   booking: BookingWithDetails;
   staff: User;
 };
+
+export const siteSettings = pgTable("site_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  key: text("key").notNull().unique(),
+  value: text("value"),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertSiteSettingSchema = createInsertSchema(siteSettings).omit({
+  id: true,
+  updatedAt: true,
+});
+
+export type SiteSetting = typeof siteSettings.$inferSelect;
+export type InsertSiteSetting = z.infer<typeof insertSiteSettingSchema>;
+
+export type SiteSettingsData = {
+  siteName: string;
+  siteDescription: string;
+  logoUrl: string;
+  faviconUrl: string;
+  metaTitle: string;
+  metaDescription: string;
+};
