@@ -26,6 +26,7 @@ import {
 } from "@shared/schema";
 import { z } from "zod";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
+import { emailService } from "./email";
 
 const updateBookingStatusSchema = z.object({
   status: z.enum(bookingStatusEnum.enumValues),
@@ -349,6 +350,17 @@ export async function registerRoutes(
         });
       }
 
+      const bookingWithDetails = await storage.getBooking(booking.id);
+      if (bookingWithDetails) {
+        emailService.sendBookingConfirmation(
+          bookingWithDetails.customer.email,
+          bookingWithDetails.customer.name,
+          bookingWithDetails.service.name,
+          bookingWithDetails.scheduledDate,
+          booking.id
+        );
+      }
+
       res.json({ booking, chat });
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -373,6 +385,17 @@ export async function registerRoutes(
         title: "Booking Updated",
         content: `Your booking status has been updated to ${data.status}.`,
       });
+
+      const bookingWithDetails = await storage.getBooking(booking.id);
+      if (bookingWithDetails) {
+        emailService.sendBookingStatusUpdate(
+          bookingWithDetails.customer.email,
+          bookingWithDetails.customer.name,
+          bookingWithDetails.service.name,
+          data.status,
+          booking.id
+        );
+      }
 
       res.json(booking);
     } catch (error) {
@@ -405,6 +428,18 @@ export async function registerRoutes(
         title: "Staff Assigned",
         content: `A staff member has been assigned to your booking.`,
       });
+
+      const bookingWithDetails = await storage.getBooking(booking.id);
+      const staff = await storage.getUser(data.staffId);
+      if (bookingWithDetails && staff) {
+        emailService.sendStaffAssignment(
+          staff.email,
+          staff.name,
+          bookingWithDetails.service.name,
+          bookingWithDetails.customer.name,
+          bookingWithDetails.scheduledDate
+        );
+      }
 
       res.json(booking);
     } catch (error) {
@@ -449,6 +484,8 @@ export async function registerRoutes(
         title: "Account Approved",
         content: "Your account has been approved. You can now access all features.",
       });
+
+      emailService.sendUserApproval(user.email, user.name);
 
       res.json({ ...user, password: undefined });
     } catch (error) {
@@ -640,6 +677,18 @@ export async function registerRoutes(
         content: `You have been assigned a new task: ${data.description}`,
       });
 
+      const staff = await storage.getUser(data.staffId);
+      const booking = await storage.getBooking(data.bookingId);
+      if (staff && booking) {
+        emailService.sendTaskAssignment(
+          staff.email,
+          staff.name,
+          data.description,
+          data.bookingId,
+          booking.customer.name
+        );
+      }
+
       res.json(task);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -694,6 +743,20 @@ export async function registerRoutes(
     try {
       await storage.markAllNotificationsRead(req.user!.userId);
       res.json({ success: true });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/admin/email-status", authMiddleware, requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+    try {
+      res.json({
+        configured: emailService.isEnabled(),
+        message: emailService.isEnabled()
+          ? "Email service is configured and ready to send emails"
+          : "Email service is not configured. Set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, and SMTP_FROM environment variables to enable email notifications.",
+      });
     } catch (error) {
       console.error(error);
       res.status(500).json({ message: "Internal server error" });
