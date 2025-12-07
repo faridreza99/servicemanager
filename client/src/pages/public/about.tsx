@@ -3,7 +3,7 @@ import { useSiteSettings } from "@/lib/site-settings";
 import { PublicLayout } from "@/components/public-layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Shield, Target, Users, Award, CheckCircle, Star, Loader2 } from "lucide-react";
 
 const iconMap: Record<string, typeof Target> = {
@@ -168,10 +168,11 @@ export default function AboutPage() {
             </p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {team.map((member: { name: string; role: string; initials: string }, index: number) => (
+            {team.map((member: { name: string; role: string; initials: string; photoUrl?: string }, index: number) => (
               <Card key={index} className="text-center">
                 <CardContent className="pt-6">
                   <Avatar className="h-20 w-20 mx-auto mb-4">
+                    {member.photoUrl && <AvatarImage src={member.photoUrl} alt={member.name} />}
                     <AvatarFallback className="text-lg">{member.initials}</AvatarFallback>
                   </Avatar>
                   <h3 className="font-semibold" data-testid={`text-team-name-${index}`}>{member.name}</h3>
