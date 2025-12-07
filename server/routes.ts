@@ -460,11 +460,21 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Booking not found" });
       }
 
+      // Automatically create a task for the assigned staff
+      const bookingWithDetails = await storage.getBooking(booking.id);
+      if (bookingWithDetails) {
+        await storage.createTask({
+          bookingId: booking.id,
+          staffId: data.staffId,
+          description: `Service: ${bookingWithDetails.service.name} - Complete service for ${bookingWithDetails.customer.name}`,
+        });
+      }
+
       await storage.createNotification({
         userId: data.staffId,
-        type: "booking",
-        title: "New Assignment",
-        content: `You have been assigned to a new booking.`,
+        type: "task",
+        title: "New Task Assigned",
+        content: `You have been assigned a new task for booking.`,
       });
 
       await storage.createNotification({
@@ -474,7 +484,6 @@ export async function registerRoutes(
         content: `A staff member has been assigned to your booking.`,
       });
 
-      const bookingWithDetails = await storage.getBooking(booking.id);
       const staff = await storage.getUser(data.staffId);
       if (bookingWithDetails && staff) {
         emailService.sendStaffAssignment(
