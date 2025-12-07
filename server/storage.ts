@@ -1,4 +1,5 @@
 import { eq, and, desc, or, ilike } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { db } from "./db";
 import {
   users,
@@ -151,63 +152,72 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getBookings(): Promise<BookingWithDetails[]> {
+    const staffUsers = alias(users, "staff_users");
     const result = await db
       .select()
       .from(bookings)
       .leftJoin(users, eq(bookings.customerId, users.id))
+      .leftJoin(staffUsers, eq(bookings.assignedStaffId, staffUsers.id))
       .leftJoin(services, eq(bookings.serviceId, services.id))
       .leftJoin(chats, eq(chats.bookingId, bookings.id))
       .orderBy(desc(bookings.createdAt));
 
-    return result.map((row) => this.mapBookingWithDetails(row));
+    return result.map((row) => this.mapBookingWithDetails(row, staffUsers));
   }
 
   async getBookingsByCustomer(customerId: string): Promise<BookingWithDetails[]> {
+    const staffUsers = alias(users, "staff_users");
     const result = await db
       .select()
       .from(bookings)
       .leftJoin(users, eq(bookings.customerId, users.id))
+      .leftJoin(staffUsers, eq(bookings.assignedStaffId, staffUsers.id))
       .leftJoin(services, eq(bookings.serviceId, services.id))
       .leftJoin(chats, eq(chats.bookingId, bookings.id))
       .where(eq(bookings.customerId, customerId))
       .orderBy(desc(bookings.createdAt));
 
-    return result.map((row) => this.mapBookingWithDetails(row));
+    return result.map((row) => this.mapBookingWithDetails(row, staffUsers));
   }
 
   async getBookingsByStaff(staffId: string): Promise<BookingWithDetails[]> {
+    const staffUsers = alias(users, "staff_users");
     const result = await db
       .select()
       .from(bookings)
       .leftJoin(users, eq(bookings.customerId, users.id))
+      .leftJoin(staffUsers, eq(bookings.assignedStaffId, staffUsers.id))
       .leftJoin(services, eq(bookings.serviceId, services.id))
       .leftJoin(chats, eq(chats.bookingId, bookings.id))
       .where(eq(bookings.assignedStaffId, staffId))
       .orderBy(desc(bookings.createdAt));
 
-    return result.map((row) => this.mapBookingWithDetails(row));
+    return result.map((row) => this.mapBookingWithDetails(row, staffUsers));
   }
 
   async getBooking(id: string): Promise<BookingWithDetails | undefined> {
+    const staffUsers = alias(users, "staff_users");
     const result = await db
       .select()
       .from(bookings)
       .leftJoin(users, eq(bookings.customerId, users.id))
+      .leftJoin(staffUsers, eq(bookings.assignedStaffId, staffUsers.id))
       .leftJoin(services, eq(bookings.serviceId, services.id))
       .leftJoin(chats, eq(chats.bookingId, bookings.id))
       .where(eq(bookings.id, id));
 
     if (result.length === 0) return undefined;
-    return this.mapBookingWithDetails(result[0]);
+    return this.mapBookingWithDetails(result[0], staffUsers);
   }
 
-  private mapBookingWithDetails(row: any): BookingWithDetails {
+  private mapBookingWithDetails(row: any, staffAlias: any): BookingWithDetails {
     const booking = row.bookings;
     return {
       ...booking,
       customer: row.users,
       service: row.services,
       chat: row.chats || undefined,
+      assignedStaff: row.staff_users || undefined,
     };
   }
 
