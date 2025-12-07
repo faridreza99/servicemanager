@@ -263,6 +263,59 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/bookings/export", authMiddleware, requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+    try {
+      const bookings = await storage.getBookings();
+      
+      const csvHeaders = [
+        "Booking ID",
+        "Customer Name",
+        "Customer Email",
+        "Service Name",
+        "Service Category",
+        "Status",
+        "Scheduled Date",
+        "Notes",
+        "Assigned Staff",
+        "Created Date"
+      ];
+      
+      const escapeCSV = (value: string): string => {
+        const str = String(value);
+        if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+          return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+      };
+
+      const csvRows = bookings.map((booking) => [
+        booking.id,
+        booking.customer.name,
+        booking.customer.email,
+        booking.service.name,
+        booking.service.category || "",
+        booking.status,
+        booking.scheduledDate ? new Date(booking.scheduledDate).toISOString().split('T')[0] : "",
+        booking.notes || "",
+        booking.assignedStaff?.name || "",
+        new Date(booking.createdAt).toISOString().split('T')[0]
+      ]);
+      
+      const csvContent = [
+        csvHeaders.map(h => escapeCSV(h)).join(','),
+        ...csvRows.map(row => row.map(cell => escapeCSV(String(cell))).join(','))
+      ].join('\n');
+      
+      const date = new Date().toISOString().split('T')[0];
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename="bookings-export-${date}.csv"`);
+      res.send(csvContent);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   app.get("/api/bookings/:id", authMiddleware, requireApproval, async (req: AuthenticatedRequest, res) => {
     try {
       const booking = await storage.getBooking(req.params.id);

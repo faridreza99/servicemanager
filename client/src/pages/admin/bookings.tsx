@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { Search, Calendar, Loader2, User } from "lucide-react";
+import { Search, Calendar, Loader2, User, Download } from "lucide-react";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { BookingCard } from "@/components/booking-card";
 import { Button } from "@/components/ui/button";
@@ -59,6 +59,25 @@ export default function AdminBookingsPage() {
     setAssignDialogOpen(true);
   };
 
+  const handleExport = async () => {
+    try {
+      const res = await fetch("/api/bookings/export", { headers: getAuthHeader() });
+      if (!res.ok) throw new Error("Failed to export bookings");
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `bookings-export-${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      toast({ title: "Export complete", description: "Bookings exported successfully." });
+    } catch (error) {
+      toast({ title: "Export failed", description: "Could not export bookings.", variant: "destructive" });
+    }
+  };
+
   const activeBookings = bookings.filter((b) => b.status !== "completed" && b.status !== "cancelled");
   const completedBookings = bookings.filter((b) => b.status === "completed" || b.status === "cancelled");
 
@@ -74,9 +93,14 @@ export default function AdminBookingsPage() {
   return (
     <DashboardLayout title="Bookings">
       <div className="max-w-4xl mx-auto p-6 space-y-6">
-        <div className="relative max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search bookings..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-10" data-testid="input-search-bookings" />
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input placeholder="Search bookings..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-10" data-testid="input-search-bookings" />
+          </div>
+          <Button variant="outline" onClick={handleExport} disabled={bookings.length === 0} data-testid="button-export-bookings">
+            <Download className="mr-2 h-4 w-4" />Export CSV
+          </Button>
         </div>
 
         {isLoading ? (
