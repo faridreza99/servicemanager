@@ -15,6 +15,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 const registerSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
   email: z.string().email("Please enter a valid email"),
+  phone: z.string().optional(),
   password: z.string().min(6, "Password must be at least 6 characters"),
   confirmPassword: z.string(),
   role: z.enum(["customer", "staff"]),
@@ -34,6 +35,7 @@ export default function RegisterPage() {
     defaultValues: {
       name: "",
       email: "",
+      phone: "",
       password: "",
       confirmPassword: "",
       role: "customer",
@@ -48,6 +50,7 @@ export default function RegisterPage() {
         body: JSON.stringify({
           name: data.name,
           email: data.email,
+          phone: data.phone || undefined,
           password: data.password,
           role: data.role,
         }),
@@ -127,6 +130,24 @@ export default function RegisterPage() {
                           placeholder="you@example.com" 
                           type="email" 
                           data-testid="input-email"
+                          {...field} 
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="phone"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Phone Number (Optional)</FormLabel>
+                      <FormControl>
+                        <Input 
+                          placeholder="+1234567890" 
+                          type="tel" 
+                          data-testid="input-phone"
                           {...field} 
                         />
                       </FormControl>

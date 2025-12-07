@@ -27,6 +27,7 @@ import {
 import { z } from "zod";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { emailService } from "./email";
+import { whatsappService } from "./whatsapp";
 
 const updateBookingStatusSchema = z.object({
   status: z.enum(bookingStatusEnum.enumValues),
@@ -100,6 +101,7 @@ export async function registerRoutes(
         email: data.email,
         password: hashedPassword,
         name: data.name,
+        phone: data.phone,
         role: data.role || "customer",
         approved: isAdmin,
       });
@@ -359,6 +361,15 @@ export async function registerRoutes(
           bookingWithDetails.scheduledDate,
           booking.id
         );
+        if (whatsappService.isEnabled() && bookingWithDetails.customer.phone) {
+          whatsappService.sendBookingConfirmation(
+            bookingWithDetails.customer.phone,
+            bookingWithDetails.customer.name,
+            bookingWithDetails.service.name,
+            bookingWithDetails.scheduledDate,
+            booking.id
+          );
+        }
       }
 
       res.json({ booking, chat });
@@ -395,6 +406,15 @@ export async function registerRoutes(
           data.status,
           booking.id
         );
+        if (whatsappService.isEnabled() && bookingWithDetails.customer.phone) {
+          whatsappService.sendBookingStatusUpdate(
+            bookingWithDetails.customer.phone,
+            bookingWithDetails.customer.name,
+            bookingWithDetails.service.name,
+            data.status,
+            booking.id
+          );
+        }
       }
 
       res.json(booking);
@@ -439,6 +459,15 @@ export async function registerRoutes(
           bookingWithDetails.customer.name,
           bookingWithDetails.scheduledDate
         );
+        if (whatsappService.isEnabled() && staff.phone) {
+          whatsappService.sendStaffAssignment(
+            staff.phone,
+            staff.name,
+            bookingWithDetails.service.name,
+            bookingWithDetails.customer.name,
+            bookingWithDetails.scheduledDate
+          );
+        }
       }
 
       res.json(booking);
@@ -486,6 +515,9 @@ export async function registerRoutes(
       });
 
       emailService.sendUserApproval(user.email, user.name);
+      if (whatsappService.isEnabled() && user.phone) {
+        whatsappService.sendUserApproval(user.phone, user.name);
+      }
 
       res.json({ ...user, password: undefined });
     } catch (error) {
@@ -555,6 +587,28 @@ export async function registerRoutes(
       const messageWithSender = { ...message, sender: sender! };
 
       io.to(`chat:${req.params.id}`).emit("new_message", messageWithSender);
+
+      if (message.isQuotation && message.quotationAmount) {
+        const booking = await storage.getBooking(chat.bookingId);
+        if (booking) {
+          emailService.sendQuotation(
+            booking.customer.email,
+            booking.customer.name,
+            booking.service.name,
+            message.quotationAmount,
+            message.content
+          );
+          if (whatsappService.isEnabled() && booking.customer.phone) {
+            whatsappService.sendQuotation(
+              booking.customer.phone,
+              booking.customer.name,
+              booking.service.name,
+              message.quotationAmount,
+              message.content
+            );
+          }
+        }
+      }
 
       res.json(messageWithSender);
     } catch (error) {
@@ -687,6 +741,15 @@ export async function registerRoutes(
           data.bookingId,
           booking.customer.name
         );
+        if (whatsappService.isEnabled() && staff.phone) {
+          whatsappService.sendTaskAssignment(
+            staff.phone,
+            staff.name,
+            data.description,
+            data.bookingId,
+            booking.customer.name
+          );
+        }
       }
 
       res.json(task);
@@ -756,6 +819,20 @@ export async function registerRoutes(
         message: emailService.isEnabled()
           ? "Email service is configured and ready to send emails"
           : "Email service is not configured. Set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, and SMTP_FROM environment variables to enable email notifications.",
+      });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/admin/whatsapp-status", authMiddleware, requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+    try {
+      res.json({
+        configured: whatsappService.isEnabled(),
+        message: whatsappService.isEnabled()
+          ? "WhatsApp service is configured and ready to send messages"
+          : "WhatsApp service is not configured. Set WHATSAPP_PHONE_NUMBER_ID and WHATSAPP_ACCESS_TOKEN environment variables to enable WhatsApp notifications.",
       });
     } catch (error) {
       console.error(error);

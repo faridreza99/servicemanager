@@ -165,8 +165,26 @@ Preferred communication style: Simple, everyday language.
 - tsx for running TypeScript files in development
 - Replit-specific plugins (vite-plugin-runtime-error-modal, vite-plugin-cartographer, vite-plugin-dev-banner)
 
+**Notification Services**
+- Email notifications via Nodemailer (server/email.ts)
+- WhatsApp notifications via WhatsApp Business Cloud API (server/whatsapp.ts)
+- Both services are optional and gracefully degrade when not configured
+- Notifications sent for: booking confirmations, status updates, staff assignments, task alerts, user approvals, quotations
+
 **Environment Variables Required**
 - DATABASE_URL: PostgreSQL connection string (required)
 - SESSION_SECRET: JWT signing secret (defaults to hardcoded value if not set)
 - NODE_ENV: development or production
 - REPL_ID: Replit-specific identifier (optional)
+
+**Email Service (Optional)**
+- SMTP_HOST: SMTP server host
+- SMTP_PORT: SMTP server port
+- SMTP_USER: SMTP username
+- SMTP_PASS: SMTP password
+- SMTP_FROM: Sender email address
+
+**WhatsApp Service (Optional)**
+- WHATSAPP_PHONE_NUMBER_ID: WhatsApp Business Phone Number ID from Meta
+- WHATSAPP_ACCESS_TOKEN: WhatsApp Cloud API access token from Meta
+- WHATSAPP_API_VERSION: API version (defaults to v18.0)
