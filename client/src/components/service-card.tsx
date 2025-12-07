@@ -2,7 +2,7 @@ import { Briefcase, ArrowRight } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import type { Service } from "@shared/schema";
+import { SERVICE_CATEGORIES, type Service } from "@shared/schema";
 
 interface ServiceCardProps {
   service: Service;
@@ -21,6 +21,8 @@ export function ServiceCard({
   onEdit,
   onToggleActive,
 }: ServiceCardProps) {
+  const categoryLabel = SERVICE_CATEGORIES.find(c => c.value === service.category)?.label || service.category;
+
   return (
     <Card className="flex flex-col h-full transition-shadow hover:shadow-md">
       <CardHeader className="flex-1">
@@ -31,14 +33,18 @@ export function ServiceCard({
             </div>
             <div>
               <CardTitle className="text-lg">{service.name}</CardTitle>
-              {showStatus && (
-                <Badge 
-                  variant={service.isActive ? "default" : "secondary"}
-                  className="mt-1"
-                >
-                  {service.isActive ? "Active" : "Inactive"}
+              <div className="flex flex-wrap gap-1 mt-1">
+                <Badge variant="outline" className="text-xs">
+                  {categoryLabel}
                 </Badge>
-              )}
+                {showStatus && (
+                  <Badge 
+                    variant={service.isActive ? "default" : "secondary"}
+                  >
+                    {service.isActive ? "Active" : "Inactive"}
+                  </Badge>
+                )}
+              </div>
             </div>
           </div>
         </div>

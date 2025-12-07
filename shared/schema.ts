@@ -26,10 +26,22 @@ export const usersRelations = relations(users, ({ many }) => ({
   notifications: many(notifications),
 }));
 
+export const serviceCategoryEnum = pgEnum("service_category", [
+  "hardware",
+  "software", 
+  "network",
+  "security",
+  "cloud",
+  "consulting",
+  "maintenance",
+  "other"
+]);
+
 export const services = pgTable("services", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
   description: text("description").notNull(),
+  category: serviceCategoryEnum("category").notNull().default("other"),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -219,6 +231,18 @@ export type UserRole = "customer" | "admin" | "staff";
 export type BookingStatus = "pending" | "confirmed" | "in_progress" | "completed" | "cancelled";
 export type TaskStatus = "pending" | "in_progress" | "completed";
 export type NotificationType = "booking" | "message" | "task" | "approval";
+export type ServiceCategory = "hardware" | "software" | "network" | "security" | "cloud" | "consulting" | "maintenance" | "other";
+
+export const SERVICE_CATEGORIES: { value: ServiceCategory; label: string }[] = [
+  { value: "hardware", label: "Hardware" },
+  { value: "software", label: "Software" },
+  { value: "network", label: "Network" },
+  { value: "security", label: "Security" },
+  { value: "cloud", label: "Cloud" },
+  { value: "consulting", label: "Consulting" },
+  { value: "maintenance", label: "Maintenance" },
+  { value: "other", label: "Other" },
+];
 
 export type BookingWithDetails = Booking & {
   customer: User;

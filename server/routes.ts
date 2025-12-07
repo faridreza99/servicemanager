@@ -21,6 +21,8 @@ import {
   insertTaskSchema,
   bookingStatusEnum,
   taskStatusEnum,
+  serviceCategoryEnum,
+  type ServiceCategory,
 } from "@shared/schema";
 import { z } from "zod";
 
@@ -178,12 +180,24 @@ export async function registerRoutes(
 
   app.get("/api/services", async (req, res) => {
     try {
-      const services = await storage.getActiveServices();
-      res.json(services);
+      const category = req.query.category as ServiceCategory | undefined;
+      const search = req.query.search as string | undefined;
+      
+      if (category || search) {
+        const services = await storage.getActiveServicesFiltered(category, search);
+        res.json(services);
+      } else {
+        const services = await storage.getActiveServices();
+        res.json(services);
+      }
     } catch (error) {
       console.error(error);
       res.status(500).json({ message: "Internal server error" });
     }
+  });
+
+  app.get("/api/services/categories", async (req, res) => {
+    res.json(serviceCategoryEnum.enumValues);
   });
 
   app.get("/api/admin/services", authMiddleware, requireRole("admin"), async (req, res) => {

@@ -1,4 +1,4 @@
-import { eq, and, desc, or } from "drizzle-orm";
+import { eq, and, desc, or, ilike } from "drizzle-orm";
 import { db } from "./db";
 import {
   users,
@@ -28,6 +28,7 @@ import {
   type UserRole,
   type BookingStatus,
   type TaskStatus,
+  type ServiceCategory,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -40,6 +41,7 @@ export interface IStorage {
 
   getServices(): Promise<Service[]>;
   getActiveServices(): Promise<Service[]>;
+  getActiveServicesFiltered(category?: ServiceCategory, search?: string): Promise<Service[]>;
   getService(id: string): Promise<Service | undefined>;
   createService(service: InsertService): Promise<Service>;
   updateService(id: string, updates: Partial<InsertService>): Promise<Service | undefined>;
@@ -107,6 +109,25 @@ export class DatabaseStorage implements IStorage {
 
   async getActiveServices(): Promise<Service[]> {
     return db.select().from(services).where(eq(services.isActive, true));
+  }
+
+  async getActiveServicesFiltered(category?: ServiceCategory, search?: string): Promise<Service[]> {
+    const conditions = [eq(services.isActive, true)];
+    
+    if (category) {
+      conditions.push(eq(services.category, category));
+    }
+    
+    if (search) {
+      conditions.push(
+        or(
+          ilike(services.name, `%${search}%`),
+          ilike(services.description, `%${search}%`)
+        )!
+      );
+    }
+    
+    return db.select().from(services).where(and(...conditions)).orderBy(services.name);
   }
 
   async getService(id: string): Promise<Service | undefined> {
