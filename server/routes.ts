@@ -700,6 +700,111 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/admin/analytics/overview", authMiddleware, requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+    try {
+      const allBookings = await storage.getBookings();
+      const allUsers = await storage.getUsers();
+      const allTasks = await storage.getTasks();
+      const allServices = await storage.getServices();
+
+      const totalBookings = allBookings.length;
+      const completedBookings = allBookings.filter(b => b.status === "completed").length;
+      const activeBookings = allBookings.filter(b => !["completed", "cancelled"].includes(b.status)).length;
+      const cancelledBookings = allBookings.filter(b => b.status === "cancelled").length;
+
+      const totalUsers = allUsers.length;
+      const customers = allUsers.filter(u => u.role === "customer").length;
+      const staff = allUsers.filter(u => u.role === "staff").length;
+      const admins = allUsers.filter(u => u.role === "admin").length;
+      const pendingApprovals = allUsers.filter(u => !u.approved).length;
+
+      const totalTasks = allTasks.length;
+      const completedTasks = allTasks.filter(t => t.status === "completed").length;
+      const pendingTasks = allTasks.filter(t => t.status === "pending").length;
+      const inProgressTasks = allTasks.filter(t => t.status === "in_progress").length;
+
+      const activeServices = allServices.filter(s => s.isActive).length;
+
+      res.json({
+        bookings: { total: totalBookings, completed: completedBookings, active: activeBookings, cancelled: cancelledBookings },
+        users: { total: totalUsers, customers, staff, admins, pendingApprovals },
+        tasks: { total: totalTasks, completed: completedTasks, pending: pendingTasks, inProgress: inProgressTasks },
+        services: { total: allServices.length, active: activeServices },
+      });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/admin/analytics/bookings", authMiddleware, requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+    try {
+      const allBookings = await storage.getBookings();
+      
+      const statusCounts: Record<string, number> = {};
+      const categoryCounts: Record<string, number> = {};
+      const monthlyTrends: Record<string, number> = {};
+
+      for (const booking of allBookings) {
+        statusCounts[booking.status] = (statusCounts[booking.status] || 0) + 1;
+        
+        const category = booking.service?.category || "Uncategorized";
+        categoryCounts[category] = (categoryCounts[category] || 0) + 1;
+
+        const month = new Date(booking.createdAt).toLocaleString('en-US', { month: 'short', year: '2-digit' });
+        monthlyTrends[month] = (monthlyTrends[month] || 0) + 1;
+      }
+
+      const statusData = Object.entries(statusCounts).map(([name, value]) => ({ name, value }));
+      const categoryData = Object.entries(categoryCounts).map(([name, value]) => ({ name, value }));
+      const trendData = Object.entries(monthlyTrends)
+        .map(([month, count]) => ({ month, count }))
+        .sort((a, b) => {
+          const parseMonth = (m: string) => {
+            const [mon, yr] = m.split(' ');
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            return parseInt(`20${yr}`) * 12 + months.indexOf(mon);
+          };
+          return parseMonth(a.month) - parseMonth(b.month);
+        });
+
+      res.json({ statusData, categoryData, trendData });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/admin/analytics/staff", authMiddleware, requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+    try {
+      const allTasks = await storage.getTasks();
+      const staffUsers = await storage.getUsersByRole("staff");
+
+      const staffPerformance = staffUsers.map(staffMember => {
+        const staffTasks = allTasks.filter(t => t.staff?.id === staffMember.id);
+        const completed = staffTasks.filter(t => t.status === "completed").length;
+        const pending = staffTasks.filter(t => t.status === "pending").length;
+        const inProgress = staffTasks.filter(t => t.status === "in_progress").length;
+
+        return {
+          id: staffMember.id,
+          name: staffMember.name,
+          email: staffMember.email,
+          totalTasks: staffTasks.length,
+          completed,
+          pending,
+          inProgress,
+          completionRate: staffTasks.length > 0 ? Math.round((completed / staffTasks.length) * 100) : 0,
+        };
+      });
+
+      res.json(staffPerformance);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   app.post("/api/objects/upload", authMiddleware, requireApproval, async (req: AuthenticatedRequest, res) => {
     try {
       const objectStorageService = new ObjectStorageService();

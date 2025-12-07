@@ -10,6 +10,7 @@ import {
   UserCheck,
   Bell,
   Shield,
+  BarChart3,
 } from "lucide-react";
 import {
   Sidebar,
@@ -37,6 +38,7 @@ function getMenuItems(role: UserRole): { main: MenuItem[]; secondary?: MenuItem[
     return {
       main: [
         { title: "Dashboard", url: "/admin", icon: Home },
+        { title: "Analytics", url: "/admin/analytics", icon: BarChart3 },
         { title: "Users", url: "/admin/users", icon: Users },
         { title: "Services", url: "/admin/services", icon: Briefcase },
         { title: "Bookings", url: "/admin/bookings", icon: Calendar },

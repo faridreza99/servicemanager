@@ -21,6 +21,7 @@ import AdminBookingsPage from "@/pages/admin/bookings";
 import AdminChatPage from "@/pages/admin/chat";
 import AdminChatsPage from "@/pages/admin/chats";
 import AdminTasksPage from "@/pages/admin/tasks";
+import AdminAnalyticsPage from "@/pages/admin/analytics";
 import StaffDashboard from "@/pages/staff/dashboard";
 import StaffTasksPage from "@/pages/staff/tasks";
 import StaffChatPage from "@/pages/staff/chat";
@@ -177,6 +178,12 @@ function Router() {
       <Route path="/admin/tasks">
         <ProtectedRoute roles={["admin"]}>
           <AdminTasksPage />
+        </ProtectedRoute>
+      </Route>
+
+      <Route path="/admin/analytics">
+        <ProtectedRoute roles={["admin"]}>
+          <AdminAnalyticsPage />
         </ProtectedRoute>
       </Route>
 
