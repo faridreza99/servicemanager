@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -31,10 +31,29 @@ const contactFormSchema = z.object({
 
 type ContactFormData = z.infer<typeof contactFormSchema>;
 
+const defaultContactInfo = {
+  email: "support@example.com",
+  phone: "+1 (555) 123-4567",
+  address: "123 Business Street\nTech City, TC 12345",
+};
+
+const defaultBusinessHours = [
+  { day: "Monday - Friday", hours: "9:00 AM - 6:00 PM" },
+  { day: "Saturday", hours: "10:00 AM - 4:00 PM" },
+  { day: "Sunday", hours: "Closed" },
+];
+
 export default function ContactPage() {
   const { settings } = useSiteSettings();
   const { toast } = useToast();
   const [submitted, setSubmitted] = useState(false);
+
+  const { data: content } = useQuery<Record<string, any>>({
+    queryKey: ["/api/public/page-content", "contact"],
+  });
+
+  const contactInfo = content?.contactInfo || defaultContactInfo;
+  const businessHours = content?.businessHours || defaultBusinessHours;
   
   const form = useForm<ContactFormData>({
     resolver: zodResolver(contactFormSchema),
@@ -100,7 +119,7 @@ export default function ContactPage() {
     <PublicLayout>
       <div className="container mx-auto px-4 md:px-6 py-12">
         <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold tracking-tight mb-4">Contact Us</h1>
+          <h1 className="text-4xl font-bold tracking-tight mb-4" data-testid="text-contact-title">Contact Us</h1>
           <p className="text-muted-foreground max-w-2xl mx-auto">
             Have a question or need help? We'd love to hear from you. 
             Send us a message and we'll respond as soon as possible.
@@ -246,7 +265,7 @@ export default function ContactPage() {
                   </div>
                   <div>
                     <p className="font-medium">Email</p>
-                    <p className="text-sm text-muted-foreground">support@example.com</p>
+                    <p className="text-sm text-muted-foreground" data-testid="text-contact-email">{contactInfo.email}</p>
                   </div>
                 </div>
                 
@@ -256,7 +275,7 @@ export default function ContactPage() {
                   </div>
                   <div>
                     <p className="font-medium">Phone</p>
-                    <p className="text-sm text-muted-foreground">+1 (555) 123-4567</p>
+                    <p className="text-sm text-muted-foreground" data-testid="text-contact-phone">{contactInfo.phone}</p>
                   </div>
                 </div>
                 
@@ -266,9 +285,8 @@ export default function ContactPage() {
                   </div>
                   <div>
                     <p className="font-medium">Address</p>
-                    <p className="text-sm text-muted-foreground">
-                      123 Business Street<br />
-                      Tech City, TC 12345
+                    <p className="text-sm text-muted-foreground whitespace-pre-line" data-testid="text-contact-address">
+                      {contactInfo.address}
                     </p>
                   </div>
                 </div>
@@ -281,18 +299,12 @@ export default function ContactPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Monday - Friday</span>
-                    <span>9:00 AM - 6:00 PM</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Saturday</span>
-                    <span>10:00 AM - 4:00 PM</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Sunday</span>
-                    <span>Closed</span>
-                  </div>
+                  {businessHours.map((hours: { day: string; hours: string }, index: number) => (
+                    <div key={index} className="flex justify-between">
+                      <span className="text-muted-foreground" data-testid={`text-hours-day-${index}`}>{hours.day}</span>
+                      <span data-testid={`text-hours-time-${index}`}>{hours.hours}</span>
+                    </div>
+                  ))}
                 </div>
               </CardContent>
             </Card>

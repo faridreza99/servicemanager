@@ -9,6 +9,7 @@ import {
   Bell,
   Shield,
   BarChart3,
+  FileEdit,
 } from "lucide-react";
 import {
   Sidebar,
@@ -42,6 +43,7 @@ function getMenuItems(role: UserRole): { main: MenuItem[]; secondary?: MenuItem[
         { title: "Services", url: "/admin/services", icon: Briefcase },
         { title: "Bookings", url: "/admin/bookings", icon: Calendar },
         { title: "Tasks", url: "/admin/tasks", icon: ClipboardList },
+        { title: "Page Content", url: "/admin/page-content", icon: FileEdit },
       ],
       secondary: [
         { title: "Notifications", url: "/admin/notifications", icon: Bell },

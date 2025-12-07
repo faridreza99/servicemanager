@@ -1263,7 +1263,7 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Service not found" });
       }
       
-      const hasCompleted = await storage.hasCompletedBooking(req.user!.id, id);
+      const hasCompleted = await storage.hasCompletedBooking(req.user!.userId, id);
       
       if (!hasCompleted) {
         return res.status(403).json({ message: "You can only review services you have completed" });
@@ -1271,7 +1271,7 @@ export async function registerRoutes(
       
       const reviewData = {
         serviceId: id,
-        userId: req.user!.id,
+        userId: req.user!.userId,
         rating: Math.min(5, Math.max(1, parseInt(req.body.rating) || 5)),
         title: req.body.title || null,
         body: req.body.body || null,
@@ -1346,6 +1346,52 @@ export async function registerRoutes(
       }
       
       res.json(message);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/public/page-content/:page", async (req, res) => {
+    try {
+      const { page } = req.params;
+      if (!["about", "contact"].includes(page)) {
+        return res.status(400).json({ message: "Invalid page" });
+      }
+      const content = await storage.getPageContent(page);
+      res.json(content);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/admin/page-content/:page", authMiddleware, requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+    try {
+      const { page } = req.params;
+      if (!["about", "contact"].includes(page)) {
+        return res.status(400).json({ message: "Invalid page" });
+      }
+      const content = await storage.getPageContent(page);
+      res.json(content);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.put("/api/admin/page-content/:page/:section", authMiddleware, requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+    try {
+      const { page, section } = req.params;
+      if (!["about", "contact"].includes(page)) {
+        return res.status(400).json({ message: "Invalid page" });
+      }
+      const content = req.body;
+      if (!content || typeof content !== "object") {
+        return res.status(400).json({ message: "Content is required" });
+      }
+      const updated = await storage.upsertPageContent(page, section, content);
+      res.json(updated);
     } catch (error) {
       console.error(error);
       res.status(500).json({ message: "Internal server error" });
