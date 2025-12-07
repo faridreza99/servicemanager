@@ -125,7 +125,17 @@ export function BookingCard({
         )}
 
         <div className="flex flex-wrap gap-2">
-          {booking.chat?.isOpen && onChat && (
+          {onViewDetails && (
+            <Button 
+              size="sm" 
+              onClick={onViewDetails}
+              data-testid={`button-view-${booking.id}`}
+            >
+              View Details
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          )}
+          {!onViewDetails && booking.chat?.isOpen && onChat && (
             <Button 
               size="sm" 
               onClick={onChat}
@@ -144,17 +154,6 @@ export function BookingCard({
             >
               <User className="mr-2 h-4 w-4" />
               Assign Staff
-            </Button>
-          )}
-          {onViewDetails && (
-            <Button 
-              size="sm" 
-              variant="ghost"
-              onClick={onViewDetails}
-              data-testid={`button-view-${booking.id}`}
-            >
-              View Details
-              <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           )}
         </div>

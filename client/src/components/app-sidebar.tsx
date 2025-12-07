@@ -2,12 +2,10 @@ import { Link, useLocation } from "wouter";
 import {
   Home,
   Calendar,
-  MessageSquare,
   Users,
   Settings,
   ClipboardList,
   Briefcase,
-  UserCheck,
   Bell,
   Shield,
   BarChart3,
@@ -43,7 +41,6 @@ function getMenuItems(role: UserRole): { main: MenuItem[]; secondary?: MenuItem[
         { title: "Services", url: "/admin/services", icon: Briefcase },
         { title: "Bookings", url: "/admin/bookings", icon: Calendar },
         { title: "Tasks", url: "/admin/tasks", icon: ClipboardList },
-        { title: "Chats", url: "/admin/chats", icon: MessageSquare },
       ],
       secondary: [
         { title: "Notifications", url: "/admin/notifications", icon: Bell },
@@ -57,7 +54,6 @@ function getMenuItems(role: UserRole): { main: MenuItem[]; secondary?: MenuItem[
       main: [
         { title: "Dashboard", url: "/staff", icon: Home },
         { title: "My Tasks", url: "/staff/tasks", icon: ClipboardList },
-        { title: "Chats", url: "/staff/chats", icon: MessageSquare },
       ],
       secondary: [
         { title: "Notifications", url: "/staff/notifications", icon: Bell },
@@ -71,7 +67,6 @@ function getMenuItems(role: UserRole): { main: MenuItem[]; secondary?: MenuItem[
       { title: "Dashboard", url: "/dashboard", icon: Home },
       { title: "Services", url: "/dashboard/services", icon: Briefcase },
       { title: "My Bookings", url: "/dashboard/bookings", icon: Calendar },
-      { title: "Messages", url: "/dashboard/chats", icon: MessageSquare },
     ],
   };
 }

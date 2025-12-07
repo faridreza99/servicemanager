@@ -13,22 +13,19 @@ import CustomerDashboard from "@/pages/customer/dashboard";
 import CustomerServicesPage from "@/pages/customer/services";
 import BookServicePage from "@/pages/customer/book-service";
 import CustomerBookingsPage from "@/pages/customer/bookings";
-import CustomerChatPage from "@/pages/customer/chat";
-import CustomerChatsPage from "@/pages/customer/chats";
+import CustomerBookingDetailPage from "@/pages/customer/booking-detail";
 import AdminDashboard from "@/pages/admin/dashboard";
 import AdminUsersPage from "@/pages/admin/users";
 import AdminServicesPage from "@/pages/admin/services";
 import AdminBookingsPage from "@/pages/admin/bookings";
-import AdminChatPage from "@/pages/admin/chat";
-import AdminChatsPage from "@/pages/admin/chats";
+import AdminBookingDetailPage from "@/pages/admin/booking-detail";
 import AdminTasksPage from "@/pages/admin/tasks";
 import AdminAnalyticsPage from "@/pages/admin/analytics";
 import AdminNotificationsPage from "@/pages/admin/notifications";
 import AdminSettingsPage from "@/pages/admin/settings";
 import StaffDashboard from "@/pages/staff/dashboard";
 import StaffTasksPage from "@/pages/staff/tasks";
-import StaffChatPage from "@/pages/staff/chat";
-import StaffChatsPage from "@/pages/staff/chats";
+import StaffBookingDetailPage from "@/pages/staff/booking-detail";
 import StaffNotificationsPage from "@/pages/staff/notifications";
 import StaffSettingsPage from "@/pages/staff/settings";
 
@@ -146,15 +143,9 @@ function Router() {
         </ProtectedRoute>
       </Route>
 
-      <Route path="/dashboard/chat/:id">
+      <Route path="/dashboard/bookings/:id">
         <ProtectedRoute roles={["customer"]}>
-          <CustomerChatPage />
-        </ProtectedRoute>
-      </Route>
-
-      <Route path="/dashboard/chats">
-        <ProtectedRoute roles={["customer"]}>
-          <CustomerChatsPage />
+          <CustomerBookingDetailPage />
         </ProtectedRoute>
       </Route>
 
@@ -182,15 +173,9 @@ function Router() {
         </ProtectedRoute>
       </Route>
 
-      <Route path="/admin/chat/:id">
+      <Route path="/admin/bookings/:id">
         <ProtectedRoute roles={["admin"]}>
-          <AdminChatPage />
-        </ProtectedRoute>
-      </Route>
-
-      <Route path="/admin/chats">
-        <ProtectedRoute roles={["admin"]}>
-          <AdminChatsPage />
+          <AdminBookingDetailPage />
         </ProtectedRoute>
       </Route>
 
@@ -230,15 +215,9 @@ function Router() {
         </ProtectedRoute>
       </Route>
 
-      <Route path="/staff/chat/:id">
+      <Route path="/staff/bookings/:id">
         <ProtectedRoute roles={["staff"]}>
-          <StaffChatPage />
-        </ProtectedRoute>
-      </Route>
-
-      <Route path="/staff/chats">
-        <ProtectedRoute roles={["staff"]}>
-          <StaffChatsPage />
+          <StaffBookingDetailPage />
         </ProtectedRoute>
       </Route>
 

@@ -87,7 +87,7 @@ export default function AdminBookingsPage() {
     if (list.length === 0) {
       return (<div className="text-center py-16 text-muted-foreground"><Calendar className="h-16 w-16 mx-auto mb-4 opacity-50" /><p className="text-lg font-medium">{searchQuery ? "No bookings found" : "No bookings"}</p></div>);
     }
-    return (<div className="space-y-4">{list.map((booking) => (<BookingCard key={booking.id} booking={booking} showCustomer showAssignee onChat={() => setLocation(`/admin/chat/${booking.chat?.id}`)} onAssign={() => handleAssign(booking)} />))}</div>);
+    return (<div className="space-y-4">{list.map((booking) => (<BookingCard key={booking.id} booking={booking} showCustomer showAssignee onViewDetails={() => setLocation(`/admin/bookings/${booking.id}`)} onAssign={() => handleAssign(booking)} />))}</div>);
   };
 
   return (

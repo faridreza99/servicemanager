@@ -42,7 +42,7 @@ export default function CustomerBookingsPage() {
           <BookingCard
             key={booking.id}
             booking={booking}
-            onChat={() => setLocation(`/dashboard/chat/${booking.chat?.id}`)}
+            onViewDetails={() => setLocation(`/dashboard/bookings/${booking.id}`)}
           />
         ))}
       </div>
