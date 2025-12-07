@@ -23,10 +23,13 @@ import AdminChatPage from "@/pages/admin/chat";
 import AdminChatsPage from "@/pages/admin/chats";
 import AdminTasksPage from "@/pages/admin/tasks";
 import AdminAnalyticsPage from "@/pages/admin/analytics";
+import AdminNotificationsPage from "@/pages/admin/notifications";
+import AdminSettingsPage from "@/pages/admin/settings";
 import StaffDashboard from "@/pages/staff/dashboard";
 import StaffTasksPage from "@/pages/staff/tasks";
 import StaffChatPage from "@/pages/staff/chat";
 import StaffChatsPage from "@/pages/staff/chats";
+import StaffNotificationsPage from "@/pages/staff/notifications";
 
 function ProtectedRoute({ children, roles }: { children: React.ReactNode; roles?: string[] }) {
   const { user, isLoading } = useAuth();
@@ -202,6 +205,18 @@ function Router() {
         </ProtectedRoute>
       </Route>
 
+      <Route path="/admin/notifications">
+        <ProtectedRoute roles={["admin"]}>
+          <AdminNotificationsPage />
+        </ProtectedRoute>
+      </Route>
+
+      <Route path="/admin/settings">
+        <ProtectedRoute roles={["admin"]}>
+          <AdminSettingsPage />
+        </ProtectedRoute>
+      </Route>
+
       <Route path="/staff">
         <ProtectedRoute roles={["staff"]}>
           <StaffDashboard />
@@ -223,6 +238,12 @@ function Router() {
       <Route path="/staff/chats">
         <ProtectedRoute roles={["staff"]}>
           <StaffChatsPage />
+        </ProtectedRoute>
+      </Route>
+
+      <Route path="/staff/notifications">
+        <ProtectedRoute roles={["staff"]}>
+          <StaffNotificationsPage />
         </ProtectedRoute>
       </Route>
 

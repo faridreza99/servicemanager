@@ -39,6 +39,7 @@ export interface IStorage {
   getUsers(): Promise<User[]>;
   getUsersByRole(role: UserRole): Promise<User[]>;
   approveUser(id: string): Promise<User | undefined>;
+  updateUserPassword(id: string, hashedPassword: string): Promise<User | undefined>;
 
   getServices(): Promise<Service[]>;
   getActiveServices(): Promise<Service[]>;
@@ -102,6 +103,11 @@ export class DatabaseStorage implements IStorage {
 
   async approveUser(id: string): Promise<User | undefined> {
     const [user] = await db.update(users).set({ approved: true }).where(eq(users.id, id)).returning();
+    return user;
+  }
+
+  async updateUserPassword(id: string, hashedPassword: string): Promise<User | undefined> {
+    const [user] = await db.update(users).set({ password: hashedPassword }).where(eq(users.id, id)).returning();
     return user;
   }
 
