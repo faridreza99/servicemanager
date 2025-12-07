@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Settings, User, Lock, Palette, Mail, Phone, Camera, Loader2, CheckCircle, XCircle, Eye, EyeOff } from "lucide-react";
+import { Settings, User, Lock, Palette, Mail, Phone, Camera, Loader2, CheckCircle, XCircle, Eye, EyeOff, Globe, Upload, Image } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -12,6 +12,8 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Textarea } from "@/components/ui/textarea";
+import type { SiteSettingsData } from "@shared/schema";
 import {
   Form,
   FormControl,
@@ -56,10 +58,20 @@ const whatsappSettingsSchema = z.object({
   apiVersion: z.string().optional(),
 });
 
+const siteSettingsSchema = z.object({
+  siteName: z.string().min(1, "Site name is required"),
+  siteDescription: z.string().optional(),
+  logoUrl: z.string().optional(),
+  faviconUrl: z.string().optional(),
+  metaTitle: z.string().optional(),
+  metaDescription: z.string().optional(),
+});
+
 type ChangePasswordFormData = z.infer<typeof changePasswordSchema>;
 type ProfileFormData = z.infer<typeof profileSchema>;
 type EmailSettingsFormData = z.infer<typeof emailSettingsSchema>;
 type WhatsappSettingsFormData = z.infer<typeof whatsappSettingsSchema>;
+type SiteSettingsFormData = z.infer<typeof siteSettingsSchema>;
 
 interface NotificationSetting {
   id?: string;
@@ -78,7 +90,11 @@ export default function AdminSettingsPage() {
   const { toast } = useToast();
   const { theme, setTheme } = useTheme();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
+  const faviconInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+  const [isUploadingFavicon, setIsUploadingFavicon] = useState(false);
   const [showEmailPass, setShowEmailPass] = useState(false);
   const [showWhatsappToken, setShowWhatsappToken] = useState(false);
 
@@ -105,6 +121,15 @@ export default function AdminSettingsPage() {
     queryFn: async () => {
       const res = await fetch("/api/admin/notification-settings/whatsapp", { headers: getAuthHeader() });
       if (!res.ok) throw new Error("Failed to fetch whatsapp settings");
+      return res.json();
+    },
+  });
+
+  const { data: siteSettings } = useQuery<SiteSettingsData>({
+    queryKey: ["/api/admin/site-settings"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/site-settings", { headers: getAuthHeader() });
+      if (!res.ok) throw new Error("Failed to fetch site settings");
       return res.json();
     },
   });
@@ -148,6 +173,18 @@ export default function AdminSettingsPage() {
     },
   });
 
+  const siteSettingsForm = useForm<SiteSettingsFormData>({
+    resolver: zodResolver(siteSettingsSchema),
+    defaultValues: {
+      siteName: "",
+      siteDescription: "",
+      logoUrl: "",
+      faviconUrl: "",
+      metaTitle: "",
+      metaDescription: "",
+    },
+  });
+
   useEffect(() => {
     if (emailSetting) {
       const config = emailSetting.config ? JSON.parse(emailSetting.config) : {};
@@ -173,6 +210,19 @@ export default function AdminSettingsPage() {
       });
     }
   }, [whatsappSetting]);
+
+  useEffect(() => {
+    if (siteSettings) {
+      siteSettingsForm.reset({
+        siteName: siteSettings.siteName || "",
+        siteDescription: siteSettings.siteDescription || "",
+        logoUrl: siteSettings.logoUrl || "",
+        faviconUrl: siteSettings.faviconUrl || "",
+        metaTitle: siteSettings.metaTitle || "",
+        metaDescription: siteSettings.metaDescription || "",
+      });
+    }
+  }, [siteSettings]);
 
   const changePasswordMutation = useMutation({
     mutationFn: async (data: { currentPassword: string; newPassword: string }) => {
@@ -241,6 +291,20 @@ export default function AdminSettingsPage() {
     },
   });
 
+  const saveSiteSettingsMutation = useMutation({
+    mutationFn: async (data: SiteSettingsFormData) => {
+      return apiRequest("PUT", "/api/admin/site-settings", data);
+    },
+    onSuccess: () => {
+      toast({ title: "Success", description: "Site settings saved successfully" });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/site-settings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/site-settings"] });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message || "Failed to save site settings", variant: "destructive" });
+    },
+  });
+
   const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -285,6 +349,88 @@ export default function AdminSettingsPage() {
       setIsUploading(false);
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
+      }
+    }
+  };
+
+  const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "Error", description: "Please select an image file", variant: "destructive" });
+      return;
+    }
+
+    setIsUploadingLogo(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch("/api/upload/cloudinary", {
+        method: "POST",
+        headers: getAuthHeader(),
+        body: formData,
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to upload logo");
+      }
+
+      const { url } = await res.json();
+      siteSettingsForm.setValue("logoUrl", url);
+      toast({ title: "Success", description: "Logo uploaded. Click Save to apply." });
+    } catch (error) {
+      toast({ 
+        title: "Error", 
+        description: error instanceof Error ? error.message : "Failed to upload logo", 
+        variant: "destructive" 
+      });
+    } finally {
+      setIsUploadingLogo(false);
+      if (logoInputRef.current) {
+        logoInputRef.current.value = "";
+      }
+    }
+  };
+
+  const handleFaviconUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "Error", description: "Please select an image file", variant: "destructive" });
+      return;
+    }
+
+    setIsUploadingFavicon(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch("/api/upload/cloudinary", {
+        method: "POST",
+        headers: getAuthHeader(),
+        body: formData,
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to upload favicon");
+      }
+
+      const { url } = await res.json();
+      siteSettingsForm.setValue("faviconUrl", url);
+      toast({ title: "Success", description: "Favicon uploaded. Click Save to apply." });
+    } catch (error) {
+      toast({ 
+        title: "Error", 
+        description: error instanceof Error ? error.message : "Failed to upload favicon", 
+        variant: "destructive" 
+      });
+    } finally {
+      setIsUploadingFavicon(false);
+      if (faviconInputRef.current) {
+        faviconInputRef.current.value = "";
       }
     }
   };
@@ -750,6 +896,207 @@ export default function AdminSettingsPage() {
                 />
                 <Button type="submit" disabled={saveWhatsappSettingsMutation.isPending} data-testid="button-save-whatsapp">
                   {saveWhatsappSettingsMutation.isPending ? "Saving..." : "Save WhatsApp Settings"}
+                </Button>
+              </form>
+            </Form>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Globe className="h-5 w-5" />
+              Site Settings
+            </CardTitle>
+            <CardDescription>
+              Configure your site branding and SEO settings
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Form {...siteSettingsForm}>
+              <form onSubmit={siteSettingsForm.handleSubmit((data) => saveSiteSettingsMutation.mutate(data))} className="space-y-4">
+                <FormField
+                  control={siteSettingsForm.control}
+                  name="siteName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Site Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="My IT Services" data-testid="input-site-name" {...field} />
+                      </FormControl>
+                      <FormDescription>The name of your website displayed in browser tabs and headers</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={siteSettingsForm.control}
+                  name="siteDescription"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Site Description</FormLabel>
+                      <FormControl>
+                        <Textarea 
+                          placeholder="Professional IT services for your business" 
+                          data-testid="input-site-description" 
+                          {...field} 
+                        />
+                      </FormControl>
+                      <FormDescription>A brief description of your business</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={siteSettingsForm.control}
+                    name="logoUrl"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Logo</FormLabel>
+                        <FormControl>
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <Input 
+                                placeholder="https://example.com/logo.png" 
+                                data-testid="input-logo-url" 
+                                {...field} 
+                              />
+                              <input
+                                ref={logoInputRef}
+                                type="file"
+                                accept="image/*"
+                                onChange={handleLogoUpload}
+                                className="hidden"
+                                data-testid="input-logo-file"
+                              />
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                onClick={() => logoInputRef.current?.click()}
+                                disabled={isUploadingLogo}
+                                data-testid="button-upload-logo"
+                              >
+                                {isUploadingLogo ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Upload className="h-4 w-4" />
+                                )}
+                              </Button>
+                            </div>
+                            {field.value && (
+                              <div className="flex items-center gap-2 p-2 border rounded-md bg-muted/50">
+                                <Image className="h-4 w-4 text-muted-foreground" />
+                                <img 
+                                  src={field.value} 
+                                  alt="Logo preview" 
+                                  className="h-8 max-w-[120px] object-contain"
+                                  data-testid="img-logo-preview"
+                                />
+                              </div>
+                            )}
+                          </div>
+                        </FormControl>
+                        <FormDescription>Your site logo for the header</FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={siteSettingsForm.control}
+                    name="faviconUrl"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Favicon</FormLabel>
+                        <FormControl>
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <Input 
+                                placeholder="https://example.com/favicon.ico" 
+                                data-testid="input-favicon-url" 
+                                {...field} 
+                              />
+                              <input
+                                ref={faviconInputRef}
+                                type="file"
+                                accept="image/*"
+                                onChange={handleFaviconUpload}
+                                className="hidden"
+                                data-testid="input-favicon-file"
+                              />
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                onClick={() => faviconInputRef.current?.click()}
+                                disabled={isUploadingFavicon}
+                                data-testid="button-upload-favicon"
+                              >
+                                {isUploadingFavicon ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Upload className="h-4 w-4" />
+                                )}
+                              </Button>
+                            </div>
+                            {field.value && (
+                              <div className="flex items-center gap-2 p-2 border rounded-md bg-muted/50">
+                                <Image className="h-4 w-4 text-muted-foreground" />
+                                <img 
+                                  src={field.value} 
+                                  alt="Favicon preview" 
+                                  className="h-6 w-6 object-contain"
+                                  data-testid="img-favicon-preview"
+                                />
+                              </div>
+                            )}
+                          </div>
+                        </FormControl>
+                        <FormDescription>Browser tab icon (16x16 or 32x32)</FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <FormField
+                  control={siteSettingsForm.control}
+                  name="metaTitle"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Meta Title</FormLabel>
+                      <FormControl>
+                        <Input 
+                          placeholder="IT Services - Professional Tech Support" 
+                          data-testid="input-meta-title" 
+                          {...field} 
+                        />
+                      </FormControl>
+                      <FormDescription>SEO title for search engines (recommended: 50-60 characters)</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={siteSettingsForm.control}
+                  name="metaDescription"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Meta Description</FormLabel>
+                      <FormControl>
+                        <Textarea 
+                          placeholder="Professional IT services including tech support, network setup, and security solutions for businesses." 
+                          data-testid="input-meta-description" 
+                          {...field} 
+                        />
+                      </FormControl>
+                      <FormDescription>SEO description for search engines (recommended: 150-160 characters)</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <Button type="submit" disabled={saveSiteSettingsMutation.isPending} data-testid="button-save-site-settings">
+                  {saveSiteSettingsMutation.isPending ? "Saving..." : "Save Site Settings"}
                 </Button>
               </form>
             </Form>

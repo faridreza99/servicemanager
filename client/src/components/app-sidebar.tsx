@@ -23,6 +23,7 @@ import {
   SidebarFooter,
 } from "@/components/ui/sidebar";
 import { useAuth } from "@/lib/auth";
+import { useSiteSettings } from "@/lib/site-settings";
 import type { UserRole } from "@shared/schema";
 
 interface MenuItem {
@@ -73,6 +74,7 @@ function getMenuItems(role: UserRole): { main: MenuItem[]; secondary?: MenuItem[
 
 export function AppSidebar() {
   const { user } = useAuth();
+  const { settings } = useSiteSettings();
   const [location] = useLocation();
 
   if (!user) return null;
@@ -83,8 +85,17 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarHeader className="border-b border-sidebar-border">
         <div className="flex items-center gap-2 px-4 py-4">
-          <Shield className="h-6 w-6 text-sidebar-primary" />
-          <span className="font-semibold text-lg">IT Services</span>
+          {settings?.logoUrl ? (
+            <img 
+              src={settings.logoUrl} 
+              alt={settings?.siteName || "Logo"} 
+              className="h-6 max-w-[100px] object-contain"
+              data-testid="img-sidebar-logo"
+            />
+          ) : (
+            <Shield className="h-6 w-6 text-sidebar-primary" />
+          )}
+          <span className="font-semibold text-lg">{settings?.siteName || "IT Services"}</span>
         </div>
       </SidebarHeader>
       <SidebarContent>
