@@ -1,5 +1,6 @@
-import { Link, useParams } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { Link, useParams, useLocation } from "wouter";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth";
 import { PublicLayout } from "@/components/public-layout";
 import { Button } from "@/components/ui/button";
@@ -8,8 +9,17 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
-import { Star, ArrowLeft, Calendar, User } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Star, ArrowLeft, Calendar, User, CheckCircle, Loader2 } from "lucide-react";
 import { format } from "date-fns";
+import { useToast } from "@/hooks/use-toast";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { Service, ReviewWithUser } from "@shared/schema";
 
 interface ServiceDetail extends Service {
@@ -73,6 +83,39 @@ function ReviewCard({ review }: { review: ReviewWithUser }) {
 export default function ServiceDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
+  const [, setLocation] = useLocation();
+  const { toast } = useToast();
+  const [showBookingDialog, setShowBookingDialog] = useState(false);
+  
+  const bookMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", "/api/bookings", {
+        serviceId: id,
+        customerId: "",
+      });
+      return response.json() as Promise<{ booking: { id: string }; chat: { id: string } }>;
+    },
+    onSuccess: async (data) => {
+      await queryClient.invalidateQueries({ queryKey: ["/api/bookings"] });
+      setShowBookingDialog(false);
+      toast({
+        title: "Booking confirmed!",
+        description: "A chat has been created for your booking. You can now communicate with our team.",
+      });
+      if (data.chat?.id) {
+        setLocation(`/dashboard/chat/${data.chat.id}`);
+      } else {
+        setLocation("/dashboard/bookings");
+      }
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Booking failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
   
   const { data: service, isLoading, error } = useQuery<ServiceDetail>({
     queryKey: ["/api/public/services", id],
@@ -231,27 +274,99 @@ export default function ServiceDetailPage() {
                 
                 <Separator />
                 
-                <Link href={user ? `/dashboard/book/${service.id}` : "/login"}>
-                  <Button className="w-full" size="lg" data-testid="button-book-service">
-                    {user ? "Book Now" : "Login to Book"}
+                {user ? (
+                  <Button 
+                    className="w-full" 
+                    size="lg" 
+                    onClick={() => setShowBookingDialog(true)}
+                    data-testid="button-book-service"
+                  >
+                    Book Now
                   </Button>
-                </Link>
-                
-                {!user && (
-                  <p className="text-xs text-center text-muted-foreground">
-                    Don't have an account?{" "}
-                    <Link href="/register">
-                      <span className="text-primary cursor-pointer hover:underline">
-                        Register here
-                      </span>
+                ) : (
+                  <>
+                    <Link href="/login">
+                      <Button className="w-full" size="lg" data-testid="button-book-service">
+                        Login to Book
+                      </Button>
                     </Link>
-                  </p>
+                    <p className="text-xs text-center text-muted-foreground">
+                      Don't have an account?{" "}
+                      <Link href="/register">
+                        <span className="text-primary cursor-pointer hover:underline">
+                          Register here
+                        </span>
+                      </Link>
+                    </p>
+                  </>
                 )}
               </CardContent>
             </Card>
           </div>
         </div>
       </div>
+      
+      <Dialog open={showBookingDialog} onOpenChange={setShowBookingDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Confirm Booking</DialogTitle>
+            <DialogDescription>
+              You're about to book: {service.name}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="bg-accent/50 rounded-lg p-4">
+              <h3 className="text-sm font-medium mb-2">What happens next?</h3>
+              <ul className="space-y-2 text-sm text-muted-foreground">
+                <li className="flex items-start gap-2">
+                  <CheckCircle className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+                  <span>A chat will be created for your booking</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+                  <span>Our team will review your request</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+                  <span>You'll receive a quotation in the chat</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+                  <span>A staff member will be assigned to assist you</span>
+                </li>
+              </ul>
+            </div>
+            
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setShowBookingDialog(false)}
+                disabled={bookMutation.isPending}
+                data-testid="button-cancel-booking"
+              >
+                Cancel
+              </Button>
+              <Button
+                className="flex-1"
+                onClick={() => bookMutation.mutate()}
+                disabled={bookMutation.isPending}
+                data-testid="button-confirm-booking"
+              >
+                {bookMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Booking...
+                  </>
+                ) : (
+                  "Confirm Booking"
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </PublicLayout>
   );
 }
