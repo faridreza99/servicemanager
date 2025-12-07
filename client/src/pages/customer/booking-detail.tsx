@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { getAuthHeader, useAuth } from "@/lib/auth";
+import { getAuthHeader } from "@/lib/auth";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { BookingWithDetails, MessageWithSender, BookingStatus } from "@shared/schema";
 import { formatDistanceToNow } from "date-fns";
@@ -38,7 +38,6 @@ function getStatusLabel(status: string) {
 export default function CustomerBookingDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [, setLocation] = useLocation();
-  const { user } = useAuth();
   const { toast } = useToast();
   const [socket, setSocket] = useState<Socket | null>(null);
 

@@ -13,7 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { getAuthHeader, useAuth } from "@/lib/auth";
+import { getAuthHeader } from "@/lib/auth";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { BookingWithDetails, MessageWithSender, User as UserType, BookingStatus } from "@shared/schema";
 import { formatDistanceToNow, format } from "date-fns";
@@ -40,7 +40,6 @@ function getStatusLabel(status: string) {
 export default function AdminBookingDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [, setLocation] = useLocation();
-  const { user } = useAuth();
   const { toast } = useToast();
   const [socket, setSocket] = useState<Socket | null>(null);
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);

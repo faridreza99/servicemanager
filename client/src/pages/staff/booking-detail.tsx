@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { getAuthHeader, useAuth } from "@/lib/auth";
+import { getAuthHeader } from "@/lib/auth";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { BookingWithDetails, MessageWithSender, BookingStatus, TaskWithDetails } from "@shared/schema";
 import { formatDistanceToNow } from "date-fns";
@@ -47,7 +47,6 @@ function getTaskStatusBadgeVariant(status: string) {
 export default function StaffBookingDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [, setLocation] = useLocation();
-  const { user } = useAuth();
   const { toast } = useToast();
   const [socket, setSocket] = useState<Socket | null>(null);
 
@@ -114,8 +113,8 @@ export default function StaffBookingDetailPage() {
   }, [chatId, id]);
 
   const sendMessageMutation = useMutation({
-    mutationFn: async ({ content, isPrivate, attachmentUrl, attachmentType }: { content: string; isPrivate: boolean; attachmentUrl?: string; attachmentType?: string }) => 
-      apiRequest("POST", `/api/chats/${chatId}/messages`, { content, isPrivate, isQuotation: false, attachmentUrl, attachmentType }),
+    mutationFn: async ({ content, isPrivate, isQuotation, quotationAmount, attachmentUrl, attachmentType }: { content: string; isPrivate: boolean; isQuotation?: boolean; quotationAmount?: number; attachmentUrl?: string; attachmentType?: string }) => 
+      apiRequest("POST", `/api/chats/${chatId}/messages`, { content, isPrivate, isQuotation: isQuotation || false, quotationAmount, attachmentUrl, attachmentType }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/chats", chatId, "messages"] }),
     onError: (error: Error) => toast({ title: "Failed to send message", description: error.message, variant: "destructive" }),
   });
@@ -131,7 +130,7 @@ export default function StaffBookingDetailPage() {
   });
 
   const handleSendMessage = useCallback((content: string, isPrivate: boolean, isQuotation?: boolean, quotationAmount?: number, attachmentUrl?: string, attachmentType?: string) => {
-    sendMessageMutation.mutate({ content, isPrivate, attachmentUrl, attachmentType });
+    sendMessageMutation.mutate({ content, isPrivate, isQuotation, quotationAmount, attachmentUrl, attachmentType });
   }, [sendMessageMutation]);
 
   const isLoading = bookingLoading || messagesLoading;
