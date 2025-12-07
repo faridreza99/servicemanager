@@ -545,6 +545,71 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/chats/:id/transcript", authMiddleware, requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+    try {
+      const chat = await storage.getChat(req.params.id);
+      if (!chat) {
+        return res.status(404).json({ message: "Chat not found" });
+      }
+
+      const booking = await storage.getBooking(chat.bookingId);
+      if (!booking) {
+        return res.status(404).json({ message: "Booking not found" });
+      }
+
+      const user = req.user!;
+      const isStaff = user.role === "admin" || user.role === "staff";
+      const messages = await storage.getMessages(req.params.id, user.userId, isStaff);
+
+      const formatDate = (date: Date) => {
+        return new Date(date).toLocaleString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+      };
+
+      let transcript = `CHAT TRANSCRIPT\n`;
+      transcript += `${'='.repeat(60)}\n\n`;
+      transcript += `Booking ID: ${booking.id}\n`;
+      transcript += `Customer: ${booking.customer.name} (${booking.customer.email})\n`;
+      transcript += `Service: ${booking.service.name}\n`;
+      transcript += `Status: ${chat.isOpen ? 'Open' : 'Closed'}\n`;
+      transcript += `Generated: ${formatDate(new Date())}\n\n`;
+      transcript += `${'='.repeat(60)}\n`;
+      transcript += `MESSAGES\n`;
+      transcript += `${'='.repeat(60)}\n\n`;
+
+      if (messages.length === 0) {
+        transcript += `No messages in this chat.\n`;
+      } else {
+        for (const msg of messages) {
+          const timestamp = formatDate(new Date(msg.createdAt));
+          const senderName = msg.sender?.name || 'Unknown';
+          const privateTag = msg.isPrivate ? ' [PRIVATE]' : '';
+          const quotationTag = msg.isQuotation ? ` [QUOTATION: $${msg.quotationAmount}]` : '';
+          const attachmentTag = msg.attachmentUrl ? ` [ATTACHMENT: ${msg.attachmentType || 'file'}]` : '';
+          
+          transcript += `[${timestamp}] ${senderName}${privateTag}${quotationTag}${attachmentTag}\n`;
+          transcript += `${msg.content}\n\n`;
+        }
+      }
+
+      transcript += `${'='.repeat(60)}\n`;
+      transcript += `END OF TRANSCRIPT\n`;
+
+      const date = new Date().toISOString().split('T')[0];
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="chat-transcript-${req.params.id.slice(0, 8)}-${date}.txt"`);
+      res.send(transcript);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   app.get("/api/tasks", authMiddleware, async (req: AuthenticatedRequest, res) => {
     try {
       const user = req.user!;

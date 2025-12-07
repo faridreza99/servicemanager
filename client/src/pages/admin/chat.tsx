@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Download } from "lucide-react";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { ChatInterface } from "@/components/chat-interface";
 import { Button } from "@/components/ui/button";
@@ -73,13 +73,37 @@ export default function AdminChatPage() {
     sendMessageMutation.mutate({ content, isPrivate, isQuotation, quotationAmount, attachmentUrl, attachmentType });
   }, [sendMessageMutation]);
 
+  const handleDownloadTranscript = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/chats/${id}/transcript`, { headers: getAuthHeader() });
+      if (!response.ok) throw new Error("Failed to download transcript");
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const contentDisposition = response.headers.get("Content-Disposition");
+      const filenameMatch = contentDisposition?.match(/filename="(.+)"/);
+      a.download = filenameMatch ? filenameMatch[1] : `chat-transcript-${id}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      toast({ title: "Transcript downloaded", description: "Chat transcript has been saved." });
+    } catch (error) {
+      toast({ title: "Download failed", description: "Could not download chat transcript.", variant: "destructive" });
+    }
+  }, [id, toast]);
+
   const isLoading = chatLoading || messagesLoading;
 
   return (
     <DashboardLayout title="Chat">
       <div className="flex flex-col h-[calc(100vh-4rem)]">
-        <div className="p-4 border-b">
+        <div className="flex items-center justify-between gap-4 p-4 border-b">
           <Button variant="ghost" onClick={() => setLocation("/admin/chats")} data-testid="button-back"><ArrowLeft className="mr-2 h-4 w-4" />Back to Chats</Button>
+          {chat && (
+            <Button variant="outline" onClick={handleDownloadTranscript} data-testid="button-download-transcript"><Download className="mr-2 h-4 w-4" />Download Transcript</Button>
+          )}
         </div>
 
         {isLoading ? (
