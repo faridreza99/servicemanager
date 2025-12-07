@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, Lock, DollarSign, X, Paperclip, FileText, Image, Loader2 } from "lucide-react";
+import { Send, Lock, DollarSign, CheckCircle, Paperclip, FileText, Image, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -137,18 +137,6 @@ export function ChatInterface({
     }
   };
 
-  if (!isOpen) {
-    return (
-      <div className="flex-1 flex items-center justify-center p-8 text-muted-foreground">
-        <div className="text-center">
-          <Lock className="h-12 w-12 mx-auto mb-4 opacity-50" />
-          <p className="text-lg font-medium">Chat is closed</p>
-          <p className="text-sm">This conversation has been ended</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between gap-4 p-4 border-b">
@@ -156,16 +144,22 @@ export function ChatInterface({
           <h3 className="font-semibold">Chat</h3>
           <p className="text-sm text-muted-foreground">{messages.length} messages</p>
         </div>
-        {canClose && onClose && (
+        {isOpen && canClose && onClose && (
           <Button 
-            variant="outline" 
+            variant="default" 
             size="sm"
             onClick={onClose}
-            data-testid="button-close-chat"
+            data-testid="button-approve-work"
           >
-            <X className="mr-2 h-4 w-4" />
-            Close Chat
+            <CheckCircle className="mr-2 h-4 w-4" />
+            Approve Work
           </Button>
+        )}
+        {!isOpen && (
+          <Badge variant="secondary" className="flex items-center gap-1">
+            <CheckCircle className="h-3 w-3" />
+            Work Approved
+          </Badge>
         )}
       </div>
 
@@ -278,6 +272,7 @@ export function ChatInterface({
         </div>
       </ScrollArea>
 
+      {isOpen ? (
       <div className="p-4 border-t space-y-3">
         {(canSendPrivate || canSendQuotation) && (
           <div className="flex flex-wrap gap-4">
@@ -385,6 +380,14 @@ export function ChatInterface({
           </Button>
         </div>
       </div>
+      ) : (
+      <div className="p-4 border-t text-center text-muted-foreground">
+        <div className="flex items-center justify-center gap-2">
+          <Lock className="h-4 w-4" />
+          <span className="text-sm">This chat has been approved and is now read-only</span>
+        </div>
+      </div>
+      )}
     </div>
   );
 }
