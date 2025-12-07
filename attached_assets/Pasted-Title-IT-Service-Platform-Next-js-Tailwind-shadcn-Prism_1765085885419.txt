@@ -1,0 +1,208 @@
+Title: IT Service Platform — Next.js + Tailwind + shadcn + Prisma + WebSockets + JWT Auth
+
+Build a full IT Service Management System with the following strict requirements:
+
+🔹 STRICT TECHNOLOGY REQUIREMENTS
+
+The project must be built using Next.js (App Router + TypeScript).
+
+Authentication must use pure JWT (JSON Web Token) — do NOT use NextAuth.
+
+UI components must use shadcn/ui.
+
+Styling must use Tailwind CSS.
+
+Database ORM must be Prisma (I will provide DATABASE_URL).
+
+Real-time chat must use WebSockets (Socket.IO).
+
+Fully compatible with Replit runtime.
+
+🔹 USER ROLES
+
+Customer
+
+View services (NO pricing).
+
+Book a service.
+
+After booking → a real-time chat opens.
+
+Chat continues until admin closes it.
+
+Customer can send private messages only to admin.
+
+Admin
+
+Must approve every new user before login is allowed.
+
+Create/edit/delete/activate services.
+
+View all bookings.
+
+Join any chat.
+
+Send quotations inside chat.
+
+Assign booking to staff.
+
+Close chat.
+
+Receive notifications (in-app + email + WhatsApp placeholder).
+
+Staff
+
+See assigned tasks/bookings.
+
+Join chat for assigned bookings.
+
+Send normal messages.
+
+Send private messages to admin (customer should not see).
+
+Receive notifications on task assignment.
+
+🔹 STRICT AUTH REQUIREMENTS (JWT Only)
+
+No NextAuth.
+
+Login returns a signed JWT containing:
+
+userId
+
+role
+
+approvalStatus
+
+Protect API routes using JWT middleware.
+
+Pending users cannot log in until admin approves.
+
+🔹 REAL-TIME CHAT REQUIREMENTS
+
+Must use Socket.IO with these rules:
+
+Rooms
+
+chat_<bookingId>
+
+Events:
+
+joinChat
+
+sendMessage
+
+newMessage
+
+closeChat
+
+Message Rules:
+
+Chat supports continuous real-time messaging until closed.
+
+Messages stored in database.
+
+Flag isPrivate to indicate private-to-admin messages.
+
+Admin + Staff + Customer all see normal messages.
+
+Only Admin sees private messages.
+
+🔹 REQUIRED DATABASE MODELS (Prisma)
+
+User (role, approved)
+
+Service
+
+Booking
+
+Chat
+
+Message (with isPrivate)
+
+Task (assigned to staff)
+
+Notification (in-app, email/WhatsApp triggers)
+
+🔹 DASHBOARDS REQUIRED
+
+Customer Dashboard
+
+Book services
+
+Live chat
+
+Booking list
+
+Admin Dashboard
+
+Approve users
+
+Manage services
+
+View bookings
+
+Assign tasks
+
+Live chat
+
+Notifications
+
+Staff Dashboard
+
+Assigned tasks
+
+Chat interface
+
+Private messaging to admin
+
+🔹 NOTIFICATIONS SYSTEM
+
+Trigger notifications for:
+
+New booking
+
+New message (customer → admin)
+
+Task assignment
+
+Must support:
+
+In-app notification table
+
+Email placeholder function
+
+WhatsApp placeholder function
+
+🔹 OUTPUT EXPECTATION
+
+Replit should generate:
+
+Full Next.js project structure
+
+JWT authentication system
+
+Protected API routes
+
+Prisma schema & migrations
+
+Full dashboards (admin, staff, customer)
+
+Socket server
+
+Real-time chat UI
+
+Service booking flow
+
+Task assignment flow
+
+Notification system
+
+🔹 STRICT MUSTS
+
+❗ Must use Next.js
+❗ Must use JWT for authentication
+❗ Must use Socket.IO for real-time chat
+❗ Must use Prisma ORM
+❗ Must use shadcn/ui + Tailwind
+❗ Must run inside one Replit project
