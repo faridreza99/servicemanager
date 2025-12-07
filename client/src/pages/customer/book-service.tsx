@@ -34,7 +34,7 @@ export default function BookServicePage() {
       });
     },
     onSuccess: async (data) => {
-      await queryClient.invalidateQueries({ queryKey: ["/api/bookings/my"] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/bookings"] });
       toast({
         title: "Booking confirmed!",
         description: "A chat has been created for your booking. You can now communicate with our team.",

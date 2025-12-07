@@ -14,9 +14,9 @@ export default function CustomerChatsPage() {
   const [, setLocation] = useLocation();
 
   const { data: bookings = [], isLoading } = useQuery<BookingWithDetails[]>({
-    queryKey: ["/api/bookings/my"],
+    queryKey: ["/api/bookings"],
     queryFn: async () => {
-      const res = await fetch("/api/bookings/my", {
+      const res = await fetch("/api/bookings", {
         headers: getAuthHeader(),
       });
       if (!res.ok) throw new Error("Failed to fetch bookings");

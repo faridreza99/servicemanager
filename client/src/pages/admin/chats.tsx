@@ -18,9 +18,9 @@ export default function AdminChatsPage() {
   const [, setLocation] = useLocation();
 
   const { data: bookings = [], isLoading } = useQuery<BookingWithDetails[]>({
-    queryKey: ["/api/admin/bookings"],
+    queryKey: ["/api/bookings"],
     queryFn: async () => {
-      const res = await fetch("/api/admin/bookings", { headers: getAuthHeader() });
+      const res = await fetch("/api/bookings", { headers: getAuthHeader() });
       if (!res.ok) throw new Error("Failed to fetch bookings");
       return res.json();
     },

@@ -25,9 +25,9 @@ export default function AdminBookingsPage() {
   const [selectedStaffId, setSelectedStaffId] = useState<string>("");
 
   const { data: bookings = [], isLoading } = useQuery<BookingWithDetails[]>({
-    queryKey: ["/api/admin/bookings"],
+    queryKey: ["/api/bookings"],
     queryFn: async () => {
-      const res = await fetch("/api/admin/bookings", { headers: getAuthHeader() });
+      const res = await fetch("/api/bookings", { headers: getAuthHeader() });
       if (!res.ok) throw new Error("Failed to fetch bookings");
       return res.json();
     },
@@ -43,9 +43,9 @@ export default function AdminBookingsPage() {
   });
 
   const assignMutation = useMutation({
-    mutationFn: async ({ bookingId, staffId }: { bookingId: string; staffId: string }) => apiRequest("POST", `/api/admin/bookings/${bookingId}/assign`, { staffId }),
+    mutationFn: async ({ bookingId, staffId }: { bookingId: string; staffId: string }) => apiRequest("POST", `/api/bookings/${bookingId}/assign`, { staffId }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/bookings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/bookings"] });
       toast({ title: "Staff assigned", description: "A task has been created for the assigned staff." });
       setAssignDialogOpen(false);
       setSelectedBooking(null);

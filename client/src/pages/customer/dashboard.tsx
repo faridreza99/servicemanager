@@ -26,9 +26,9 @@ export default function CustomerDashboard() {
   });
 
   const { data: bookings = [], isLoading: bookingsLoading } = useQuery<BookingWithDetails[]>({
-    queryKey: ["/api/bookings/my"],
+    queryKey: ["/api/bookings"],
     queryFn: async () => {
-      const res = await fetch("/api/bookings/my", {
+      const res = await fetch("/api/bookings", {
         headers: getAuthHeader(),
       });
       if (!res.ok) throw new Error("Failed to fetch bookings");

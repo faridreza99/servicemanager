@@ -16,9 +16,9 @@ export default function AdminTasksPage() {
   const [searchQuery, setSearchQuery] = useState("");
 
   const { data: tasks = [], isLoading } = useQuery<TaskWithDetails[]>({
-    queryKey: ["/api/admin/tasks"],
+    queryKey: ["/api/tasks"],
     queryFn: async () => {
-      const res = await fetch("/api/admin/tasks", { headers: getAuthHeader() });
+      const res = await fetch("/api/tasks", { headers: getAuthHeader() });
       if (!res.ok) throw new Error("Failed to fetch tasks");
       return res.json();
     },

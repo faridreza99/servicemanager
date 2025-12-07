@@ -18,9 +18,9 @@ export default function StaffChatsPage() {
   const [, setLocation] = useLocation();
 
   const { data: tasks = [], isLoading } = useQuery<TaskWithDetails[]>({
-    queryKey: ["/api/staff/tasks"],
+    queryKey: ["/api/tasks"],
     queryFn: async () => {
-      const res = await fetch("/api/staff/tasks", { headers: getAuthHeader() });
+      const res = await fetch("/api/tasks", { headers: getAuthHeader() });
       if (!res.ok) throw new Error("Failed to fetch tasks");
       return res.json();
     },

@@ -19,9 +19,9 @@ export default function StaffTasksPage() {
   const [searchQuery, setSearchQuery] = useState("");
 
   const { data: tasks = [], isLoading } = useQuery<TaskWithDetails[]>({
-    queryKey: ["/api/staff/tasks"],
+    queryKey: ["/api/tasks"],
     queryFn: async () => {
-      const res = await fetch("/api/staff/tasks", { headers: getAuthHeader() });
+      const res = await fetch("/api/tasks", { headers: getAuthHeader() });
       if (!res.ok) throw new Error("Failed to fetch tasks");
       return res.json();
     },
@@ -30,7 +30,7 @@ export default function StaffTasksPage() {
   const updateTaskMutation = useMutation({
     mutationFn: async ({ taskId, status }: { taskId: string; status: string }) => apiRequest("PATCH", `/api/tasks/${taskId}`, { status }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/staff/tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
       toast({ title: "Task updated" });
     },
     onError: (error: Error) => toast({ title: "Failed to update task", description: error.message, variant: "destructive" }),
