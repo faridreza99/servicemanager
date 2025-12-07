@@ -57,6 +57,8 @@ export const bookings = pgTable("bookings", {
   customerId: varchar("customer_id").notNull().references(() => users.id),
   serviceId: varchar("service_id").notNull().references(() => services.id),
   status: bookingStatusEnum("status").notNull().default("pending"),
+  scheduledDate: timestamp("scheduled_date"),
+  notes: text("notes"),
   assignedStaffId: varchar("assigned_staff_id").references(() => users.id),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });

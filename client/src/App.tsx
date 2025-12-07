@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Switch, Route, Redirect, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -31,6 +32,25 @@ function ProtectedRoute({ children, roles }: { children: React.ReactNode; roles?
   const { user, isLoading } = useAuth();
   const [, setLocation] = useLocation();
 
+  useEffect(() => {
+    if (isLoading) return;
+    
+    if (!user) {
+      setLocation("/login");
+      return;
+    }
+
+    if (roles && !roles.includes(user.role)) {
+      if (user.role === "admin") {
+        setLocation("/admin");
+      } else if (user.role === "staff") {
+        setLocation("/staff");
+      } else {
+        setLocation("/dashboard");
+      }
+    }
+  }, [user, isLoading, roles, setLocation]);
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -39,19 +59,7 @@ function ProtectedRoute({ children, roles }: { children: React.ReactNode; roles?
     );
   }
 
-  if (!user) {
-    setLocation("/login");
-    return null;
-  }
-
-  if (roles && !roles.includes(user.role)) {
-    if (user.role === "admin") {
-      setLocation("/admin");
-    } else if (user.role === "staff") {
-      setLocation("/staff");
-    } else {
-      setLocation("/dashboard");
-    }
+  if (!user || (roles && !roles.includes(user.role))) {
     return null;
   }
 
@@ -62,6 +70,20 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
   const [, setLocation] = useLocation();
 
+  useEffect(() => {
+    if (isLoading) return;
+    
+    if (user) {
+      if (user.role === "admin") {
+        setLocation("/admin");
+      } else if (user.role === "staff") {
+        setLocation("/staff");
+      } else {
+        setLocation("/dashboard");
+      }
+    }
+  }, [user, isLoading, setLocation]);
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -71,13 +93,6 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
   }
 
   if (user) {
-    if (user.role === "admin") {
-      setLocation("/admin");
-    } else if (user.role === "staff") {
-      setLocation("/staff");
-    } else {
-      setLocation("/dashboard");
-    }
     return null;
   }
 
