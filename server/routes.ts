@@ -204,6 +204,20 @@ export async function registerRoutes(
     res.json(serviceCategoryEnum.enumValues);
   });
 
+  app.get("/api/services/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const service = await storage.getService(id);
+      if (!service || !service.isActive) {
+        return res.status(404).json({ message: "Service not found" });
+      }
+      res.json(service);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   app.get("/api/admin/services", authMiddleware, requireRole("admin"), async (req, res) => {
     try {
       const services = await storage.getServices();
