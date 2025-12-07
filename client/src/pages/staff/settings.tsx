@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Settings, User, Lock, Palette, Mail, Phone, Camera, Loader2, CheckCircle, XCircle } from "lucide-react";
+import { User, Lock, Palette, Mail, Phone, Camera, Loader2, CheckCircle, XCircle, Settings } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -46,7 +46,7 @@ interface SystemStatus {
   whatsapp: { enabled: boolean; configured: boolean };
 }
 
-export default function AdminSettingsPage() {
+export default function StaffSettingsPage() {
   const { user, updateUser } = useAuth();
   const { toast } = useToast();
   const { theme, setTheme } = useTheme();

@@ -30,6 +30,7 @@ import StaffTasksPage from "@/pages/staff/tasks";
 import StaffChatPage from "@/pages/staff/chat";
 import StaffChatsPage from "@/pages/staff/chats";
 import StaffNotificationsPage from "@/pages/staff/notifications";
+import StaffSettingsPage from "@/pages/staff/settings";
 
 function ProtectedRoute({ children, roles }: { children: React.ReactNode; roles?: string[] }) {
   const { user, isLoading } = useAuth();
@@ -244,6 +245,12 @@ function Router() {
       <Route path="/staff/notifications">
         <ProtectedRoute roles={["staff"]}>
           <StaffNotificationsPage />
+        </ProtectedRoute>
+      </Route>
+
+      <Route path="/staff/settings">
+        <ProtectedRoute roles={["staff"]}>
+          <StaffSettingsPage />
         </ProtectedRoute>
       </Route>
 

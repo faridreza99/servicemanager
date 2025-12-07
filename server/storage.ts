@@ -30,6 +30,7 @@ import {
   type BookingStatus,
   type TaskStatus,
   type ServiceCategory,
+  type UpdateProfile,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -40,6 +41,7 @@ export interface IStorage {
   getUsersByRole(role: UserRole): Promise<User[]>;
   approveUser(id: string): Promise<User | undefined>;
   updateUserPassword(id: string, hashedPassword: string): Promise<User | undefined>;
+  updateUserProfile(id: string, profile: UpdateProfile): Promise<User | undefined>;
 
   getServices(): Promise<Service[]>;
   getActiveServices(): Promise<Service[]>;
@@ -108,6 +110,16 @@ export class DatabaseStorage implements IStorage {
 
   async updateUserPassword(id: string, hashedPassword: string): Promise<User | undefined> {
     const [user] = await db.update(users).set({ password: hashedPassword }).where(eq(users.id, id)).returning();
+    return user;
+  }
+
+  async updateUserProfile(id: string, profile: UpdateProfile): Promise<User | undefined> {
+    const updateData: Partial<{ name: string; phone: string | null; profilePhoto: string | null }> = {};
+    if (profile.name !== undefined) updateData.name = profile.name;
+    if (profile.phone !== undefined) updateData.phone = profile.phone;
+    if (profile.profilePhoto !== undefined) updateData.profilePhoto = profile.profilePhoto;
+    
+    const [user] = await db.update(users).set(updateData).where(eq(users.id, id)).returning();
     return user;
   }
 

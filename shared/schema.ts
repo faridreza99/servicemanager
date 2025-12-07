@@ -15,6 +15,7 @@ export const users = pgTable("users", {
   password: text("password").notNull(),
   name: text("name").notNull(),
   phone: text("phone"),
+  profilePhoto: text("profile_photo"),
   role: userRoleEnum("role").notNull().default("customer"),
   approved: boolean("approved").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -170,6 +171,14 @@ export const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6),
 });
+
+export const updateProfileSchema = z.object({
+  name: z.string().min(1, "Name is required").optional(),
+  phone: z.string().optional().nullable(),
+  profilePhoto: z.string().optional().nullable(),
+});
+
+export type UpdateProfile = z.infer<typeof updateProfileSchema>;
 
 export const registerSchema = insertUserSchema.extend({
   password: z.string().min(6, "Password must be at least 6 characters"),

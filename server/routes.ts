@@ -22,6 +22,7 @@ import {
   bookingStatusEnum,
   taskStatusEnum,
   serviceCategoryEnum,
+  updateProfileSchema,
   type ServiceCategory,
 } from "@shared/schema";
 import { z } from "zod";
@@ -210,6 +211,51 @@ export async function registerRoutes(
       await storage.updateUserPassword(user.id, hashedPassword);
       
       res.json({ message: "Password changed successfully" });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.put("/api/profile", authMiddleware, async (req: AuthenticatedRequest, res) => {
+    try {
+      const data = updateProfileSchema.parse(req.body);
+      
+      const updatedUser = await storage.updateUserProfile(req.user!.userId, data);
+      if (!updatedUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      res.json({ 
+        user: { 
+          id: updatedUser.id,
+          email: updatedUser.email,
+          name: updatedUser.name,
+          phone: updatedUser.phone,
+          profilePhoto: updatedUser.profilePhoto,
+          role: updatedUser.role,
+          approved: updatedUser.approved,
+        },
+        message: "Profile updated successfully" 
+      });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/system/status", authMiddleware, requireRole("admin", "staff"), async (req: AuthenticatedRequest, res) => {
+    try {
+      res.json({
+        email: {
+          enabled: emailService.isEnabled(),
+          configured: emailService.isEnabled(),
+        },
+        whatsapp: {
+          enabled: whatsappService.isEnabled(),
+          configured: whatsappService.isEnabled(),
+        },
+      });
     } catch (error) {
       console.error(error);
       res.status(500).json({ message: "Internal server error" });

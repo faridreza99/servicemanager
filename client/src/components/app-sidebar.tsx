@@ -61,6 +61,7 @@ function getMenuItems(role: UserRole): { main: MenuItem[]; secondary?: MenuItem[
       ],
       secondary: [
         { title: "Notifications", url: "/staff/notifications", icon: Bell },
+        { title: "Settings", url: "/staff/settings", icon: Settings },
       ],
     };
   }
