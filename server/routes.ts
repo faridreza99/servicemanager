@@ -881,6 +881,12 @@ export async function registerRoutes(
       if (!task) {
         return res.status(404).json({ message: "Task not found" });
       }
+      
+      // When task is completed, also mark the booking as completed
+      if (data.status === "completed" && task.bookingId) {
+        await storage.updateBookingStatus(task.bookingId, "completed");
+      }
+      
       res.json(task);
     } catch (error) {
       if (error instanceof z.ZodError) {
