@@ -1,0 +1,39 @@
+2025-12-08T04:26:35.761771931Z ==> It looks like we don't have access to your repo, but we'll try to clone it anyway.
+2025-12-08T04:26:35.761796842Z ==> Cloning from https://github.com/faridreza99/servicemanager
+2025-12-08T04:26:36.746569351Z ==> Checking out commit 12287f7cc9ce1283ca2f793b96352925c0ced66d in branch main
+2025-12-08T04:26:37.818999799Z ==> Using Node.js version 22.16.0 (default)
+2025-12-08T04:26:37.848808019Z ==> Docs on specifying a Node.js version: https://render.com/docs/node-version
+2025-12-08T04:26:39.759136863Z ==> Running build command 'npm install && npx tsx script/build.ts'...
+2025-12-08T04:26:48.465785312Z 
+2025-12-08T04:26:48.465815103Z added 607 packages, and audited 608 packages in 9s
+2025-12-08T04:26:48.465828624Z 
+2025-12-08T04:26:48.465887157Z 72 packages are looking for funding
+2025-12-08T04:26:48.465902418Z   run `npm fund` for details
+2025-12-08T04:26:48.47092144Z 
+2025-12-08T04:26:48.470948411Z 4 vulnerabilities (3 low, 1 high)
+2025-12-08T04:26:48.470953902Z 
+2025-12-08T04:26:48.470959292Z To address all issues, run:
+2025-12-08T04:26:48.470963502Z   npm audit fix
+2025-12-08T04:26:48.470967542Z 
+2025-12-08T04:26:48.470971782Z Run `npm audit` for details.
+2025-12-08T04:26:49.138648829Z 
+2025-12-08T04:26:49.239215309Z node:internal/modules/run_main:123
+2025-12-08T04:26:49.23923067Z     triggerUncaughtException(
+2025-12-08T04:26:49.23923499Z     ^
+2025-12-08T04:26:49.239268832Z Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'esbuild' imported from /opt/render/project/src/script/build.ts
+2025-12-08T04:26:49.239279352Z     at Object.getPackageJSONURL (node:internal/modules/package_json_reader:256:9)
+2025-12-08T04:26:49.239284352Z     at packageResolve (node:internal/modules/esm/resolve:768:81)
+2025-12-08T04:26:49.239288182Z     at moduleResolve (node:internal/modules/esm/resolve:854:18)
+2025-12-08T04:26:49.239291823Z     at defaultResolve (node:internal/modules/esm/resolve:984:11)
+2025-12-08T04:26:49.239295603Z     at nextResolve (node:internal/modules/esm/hooks:748:28)
+2025-12-08T04:26:49.239300233Z     at resolveBase (file:///opt/render/project/src/node_modules/tsx/dist/esm/index.mjs?1765168009025:2:3744)
+2025-12-08T04:26:49.239303953Z     at resolveDirectory (file:///opt/render/project/src/node_modules/tsx/dist/esm/index.mjs?1765168009025:2:4243)
+2025-12-08T04:26:49.239307843Z     at resolveTsPaths (file:///opt/render/project/src/node_modules/tsx/dist/esm/index.mjs?1765168009025:2:4984)
+2025-12-08T04:26:49.239311594Z     at async resolve (file:///opt/render/project/src/node_modules/tsx/dist/esm/index.mjs?1765168009025:2:5355)
+2025-12-08T04:26:49.239316134Z     at async nextResolve (node:internal/modules/esm/hooks:748:22) {
+2025-12-08T04:26:49.239319844Z   code: 'ERR_MODULE_NOT_FOUND'
+2025-12-08T04:26:49.239323454Z }
+2025-12-08T04:26:49.239326864Z 
+2025-12-08T04:26:49.239330484Z Node.js v22.16.0
+2025-12-08T04:26:49.301314194Z ==> Build failed 😞
+2025-12-08T04:26:49.301332684Z ==> Common ways to troubleshoot your deploy: https://render.com/docs/troubleshooting-deploys
