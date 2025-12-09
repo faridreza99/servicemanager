@@ -25,6 +25,7 @@ import AdminAnalyticsPage from "@/pages/admin/analytics";
 import AdminNotificationsPage from "@/pages/admin/notifications";
 import AdminSettingsPage from "@/pages/admin/settings";
 import AdminPageContentPage from "@/pages/admin/page-content";
+import AdminChatPage from "@/pages/admin/chat";
 import StaffDashboard from "@/pages/staff/dashboard";
 import StaffTasksPage from "@/pages/staff/tasks";
 import StaffBookingDetailPage from "@/pages/staff/booking-detail";
@@ -229,6 +230,12 @@ function Router() {
       <Route path="/admin/page-content">
         <ProtectedRoute roles={["admin"]}>
           <AdminPageContentPage />
+        </ProtectedRoute>
+      </Route>
+
+      <Route path="/admin/chat/:id">
+        <ProtectedRoute roles={["admin"]}>
+          <AdminChatPage />
         </ProtectedRoute>
       </Route>
 
