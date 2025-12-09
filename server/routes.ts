@@ -343,6 +343,16 @@ export async function registerRoutes(
   app.delete("/api/services/:id", authMiddleware, requireRole("admin"), async (req: AuthenticatedRequest, res) => {
     try {
       const { id } = req.params;
+      
+      // Check if service has any bookings
+      const bookings = await storage.getBookings();
+      const hasBookings = bookings.some(b => b.serviceId === id);
+      if (hasBookings) {
+        return res.status(400).json({ 
+          message: "Cannot delete this service because it has existing bookings. Please deactivate the service instead." 
+        });
+      }
+      
       const deleted = await storage.deleteService(id);
       if (!deleted) {
         return res.status(404).json({ message: "Service not found" });
