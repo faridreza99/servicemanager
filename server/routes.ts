@@ -344,13 +344,28 @@ export async function registerRoutes(
     try {
       const { id } = req.params;
       
-      // Check if service has any bookings
+      // Delete associated bookings and their related data first
       const bookings = await storage.getBookings();
-      const hasBookings = bookings.some(b => b.serviceId === id);
-      if (hasBookings) {
-        return res.status(400).json({ 
-          message: "Cannot delete this service because it has existing bookings. Please deactivate the service instead." 
-        });
+      const serviceBookings = bookings.filter(b => b.serviceId === id);
+      
+      for (const booking of serviceBookings) {
+        // Delete tasks associated with the booking
+        const tasks = await storage.getTasksByBooking(booking.id);
+        for (const task of tasks) {
+          await storage.deleteTask(task.id);
+        }
+        
+        // Delete chat and messages associated with the booking
+        if (booking.chat) {
+          const messages = await storage.getMessagesByChat(booking.chat.id);
+          for (const message of messages) {
+            await storage.deleteMessage(message.id);
+          }
+          await storage.deleteChat(booking.chat.id);
+        }
+        
+        // Delete the booking itself
+        await storage.deleteBooking(booking.id);
       }
       
       const deleted = await storage.deleteService(id);

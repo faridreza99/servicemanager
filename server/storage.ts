@@ -77,21 +77,27 @@ export interface IStorage {
   createBooking(booking: InsertBooking): Promise<Booking>;
   updateBookingStatus(id: string, status: BookingStatus): Promise<Booking | undefined>;
   assignBookingToStaff(bookingId: string, staffId: string): Promise<Booking | undefined>;
+  deleteBooking(id: string): Promise<boolean>;
 
   getChat(id: string): Promise<Chat | undefined>;
   getChatByBooking(bookingId: string): Promise<Chat | undefined>;
   createChat(chat: InsertChat): Promise<Chat>;
   closeChat(id: string): Promise<Chat | undefined>;
+  deleteChat(id: string): Promise<boolean>;
 
   getMessages(chatId: string, userId: string, isStaff: boolean): Promise<MessageWithSender[]>;
+  getMessagesByChat(chatId: string): Promise<Message[]>;
   createMessage(message: InsertMessage): Promise<Message>;
   getMessageByAttachmentUrl(attachmentUrl: string): Promise<Message | undefined>;
+  deleteMessage(id: string): Promise<boolean>;
 
   getTasks(): Promise<TaskWithDetails[]>;
   getTasksByStaff(staffId: string): Promise<TaskWithDetails[]>;
+  getTasksByBooking(bookingId: string): Promise<Task[]>;
   getTask(id: string): Promise<TaskWithDetails | undefined>;
   createTask(task: InsertTask): Promise<Task>;
   updateTaskStatus(id: string, status: TaskStatus): Promise<Task | undefined>;
+  deleteTask(id: string): Promise<boolean>;
 
   getNotifications(userId: string): Promise<Notification[]>;
   createNotification(notification: InsertNotification): Promise<Notification>;
@@ -312,6 +318,11 @@ export class DatabaseStorage implements IStorage {
     return booking;
   }
 
+  async deleteBooking(id: string): Promise<boolean> {
+    const result = await db.delete(bookings).where(eq(bookings.id, id)).returning();
+    return result.length > 0;
+  }
+
   async getChat(id: string): Promise<Chat | undefined> {
     const [chat] = await db.select().from(chats).where(eq(chats.id, id));
     return chat;
@@ -334,6 +345,11 @@ export class DatabaseStorage implements IStorage {
       .where(eq(chats.id, id))
       .returning();
     return chat;
+  }
+
+  async deleteChat(id: string): Promise<boolean> {
+    const result = await db.delete(chats).where(eq(chats.id, id)).returning();
+    return result.length > 0;
   }
 
   async getMessages(chatId: string, userId: string, isStaff: boolean): Promise<MessageWithSender[]> {
@@ -374,6 +390,15 @@ export class DatabaseStorage implements IStorage {
   async getMessageByAttachmentUrl(attachmentUrl: string): Promise<Message | undefined> {
     const [message] = await db.select().from(messages).where(eq(messages.attachmentUrl, attachmentUrl));
     return message;
+  }
+
+  async getMessagesByChat(chatId: string): Promise<Message[]> {
+    return await db.select().from(messages).where(eq(messages.chatId, chatId));
+  }
+
+  async deleteMessage(id: string): Promise<boolean> {
+    const result = await db.delete(messages).where(eq(messages.id, id)).returning();
+    return result.length > 0;
   }
 
   async getTasks(): Promise<TaskWithDetails[]> {
@@ -454,6 +479,15 @@ export class DatabaseStorage implements IStorage {
       .where(eq(tasks.id, id))
       .returning();
     return task;
+  }
+
+  async getTasksByBooking(bookingId: string): Promise<Task[]> {
+    return await db.select().from(tasks).where(eq(tasks.bookingId, bookingId));
+  }
+
+  async deleteTask(id: string): Promise<boolean> {
+    const result = await db.delete(tasks).where(eq(tasks.id, id)).returning();
+    return result.length > 0;
   }
 
   async getNotifications(userId: string): Promise<Notification[]> {
