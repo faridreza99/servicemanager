@@ -1,4 +1,4 @@
-import { Briefcase, ArrowRight } from "lucide-react";
+import { Briefcase, ArrowRight, Trash2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +11,7 @@ interface ServiceCardProps {
   isAdmin?: boolean;
   onEdit?: () => void;
   onToggleActive?: () => void;
+  onDelete?: () => void;
 }
 
 export function ServiceCard({ 
@@ -20,6 +21,7 @@ export function ServiceCard({
   isAdmin = false,
   onEdit,
   onToggleActive,
+  onDelete,
 }: ServiceCardProps) {
   const categoryLabel = SERVICE_CATEGORIES.find(c => c.value === service.category)?.label || service.category;
 
@@ -71,6 +73,16 @@ export function ServiceCard({
             >
               {service.isActive ? "Deactivate" : "Activate"}
             </Button>
+            {onDelete && (
+              <Button 
+                variant="destructive"
+                size="icon"
+                onClick={onDelete}
+                data-testid={`button-delete-service-${service.id}`}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            )}
           </>
         ) : (
           <Button 

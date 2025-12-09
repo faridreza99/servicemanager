@@ -10,6 +10,7 @@ import {
   Shield,
   BarChart3,
   FileEdit,
+  Star,
 } from "lucide-react";
 import {
   Sidebar,
@@ -43,6 +44,7 @@ function getMenuItems(role: UserRole): { main: MenuItem[]; secondary?: MenuItem[
         { title: "Services", url: "/admin/services", icon: Briefcase },
         { title: "Bookings", url: "/admin/bookings", icon: Calendar },
         { title: "Tasks", url: "/admin/tasks", icon: ClipboardList },
+        { title: "Reviews", url: "/admin/reviews", icon: Star },
         { title: "Page Content", url: "/admin/page-content", icon: FileEdit },
       ],
       secondary: [
@@ -70,6 +72,9 @@ function getMenuItems(role: UserRole): { main: MenuItem[]; secondary?: MenuItem[
       { title: "Dashboard", url: "/dashboard", icon: Home },
       { title: "Services", url: "/dashboard/services", icon: Briefcase },
       { title: "My Bookings", url: "/dashboard/bookings", icon: Calendar },
+    ],
+    secondary: [
+      { title: "Settings", url: "/dashboard/settings", icon: Settings },
     ],
   };
 }

@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
@@ -23,6 +24,7 @@ const serviceSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
   description: z.string().min(10, "Description must be at least 10 characters"),
   category: z.enum(["hardware", "software", "network", "security", "cloud", "consulting", "maintenance", "other"] as const),
+  customCategory: z.string().optional(),
 });
 
 type ServiceForm = z.infer<typeof serviceSchema>;
@@ -31,12 +33,16 @@ export default function AdminServicesPage() {
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [editingService, setEditingService] = useState<Service | null>(null);
+  const [deletingService, setDeletingService] = useState<Service | null>(null);
 
   const form = useForm<ServiceForm>({
     resolver: zodResolver(serviceSchema),
-    defaultValues: { name: "", description: "", category: "other" },
+    defaultValues: { name: "", description: "", category: "other", customCategory: "" },
   });
+
+  const selectedCategory = form.watch("category");
 
   const { data: services = [], isLoading } = useQuery<Service[]>({
     queryKey: ["/api/admin/services"],
@@ -82,11 +88,24 @@ export default function AdminServicesPage() {
     onError: (error: Error) => toast({ title: "Failed to update service", description: error.message, variant: "destructive" }),
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => apiRequest("DELETE", `/api/services/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/services"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/services"] });
+      toast({ title: "Service deleted", description: "The service has been permanently removed." });
+      setDeleteDialogOpen(false);
+      setDeletingService(null);
+    },
+    onError: (error: Error) => toast({ title: "Failed to delete service", description: error.message, variant: "destructive" }),
+  });
+
   const handleEdit = (service: Service) => {
     setEditingService(service);
     form.setValue("name", service.name);
     form.setValue("description", service.description);
     form.setValue("category", service.category as ServiceCategory);
+    form.setValue("customCategory", "");
     setDialogOpen(true);
   };
 
@@ -94,6 +113,17 @@ export default function AdminServicesPage() {
     setEditingService(null);
     form.reset();
     setDialogOpen(true);
+  };
+
+  const handleDelete = (service: Service) => {
+    setDeletingService(service);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = () => {
+    if (deletingService) {
+      deleteMutation.mutate(deletingService.id);
+    }
   };
 
   const onSubmit = (data: ServiceForm) => {
@@ -162,6 +192,7 @@ export default function AdminServicesPage() {
                 onToggleActive={() =>
                   toggleActiveMutation.mutate({ id: service.id, isActive: !service.isActive })
                 }
+                onDelete={() => handleDelete(service)}
               />
             ))}
           </div>
@@ -218,6 +249,25 @@ export default function AdminServicesPage() {
                     </FormItem>
                   )}
                 />
+                {selectedCategory === "other" && (
+                  <FormField
+                    control={form.control}
+                    name="customCategory"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Custom Category Name</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="Enter custom category name..."
+                            data-testid="input-custom-category"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
                 <FormField
                   control={form.control}
                   name="description"
@@ -261,6 +311,34 @@ export default function AdminServicesPage() {
             </Form>
           </DialogContent>
         </Dialog>
+
+        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Service</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete "{deletingService?.name}"? This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={confirmDelete}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                data-testid="button-confirm-delete"
+              >
+                {deleteMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  "Delete"
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </DashboardLayout>
   );

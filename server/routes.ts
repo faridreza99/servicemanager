@@ -340,6 +340,20 @@ export async function registerRoutes(
     }
   });
 
+  app.delete("/api/services/:id", authMiddleware, requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+    try {
+      const { id } = req.params;
+      const deleted = await storage.deleteService(id);
+      if (!deleted) {
+        return res.status(404).json({ message: "Service not found" });
+      }
+      res.json({ message: "Service deleted successfully" });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   app.get("/api/bookings", authMiddleware, requireApproval, async (req: AuthenticatedRequest, res) => {
     try {
       const user = req.user!;
