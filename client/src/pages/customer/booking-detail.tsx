@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { ArrowLeft, Calendar, Clock } from "lucide-react";
+import { ArrowLeft, Calendar, Clock, Star } from "lucide-react";
 import { io, Socket } from "socket.io-client";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { ChatInterface } from "@/components/chat-interface";
@@ -10,6 +10,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { getAuthHeader } from "@/lib/auth";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -40,6 +44,11 @@ export default function CustomerBookingDetailPage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [socket, setSocket] = useState<Socket | null>(null);
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [hasShownReviewPrompt, setHasShownReviewPrompt] = useState(false);
+  const [rating, setRating] = useState(5);
+  const [reviewTitle, setReviewTitle] = useState("");
+  const [reviewBody, setReviewBody] = useState("");
 
   const { data: booking, isLoading: bookingLoading } = useQuery<BookingWithDetails>({
     queryKey: ["/api/bookings", id],
@@ -91,6 +100,46 @@ export default function CustomerBookingDetailPage() {
       socketInstance.disconnect();
     };
   }, [chatId, id]);
+
+  // Show review modal when booking is completed
+  useEffect(() => {
+    if (booking?.status === "completed" && !hasShownReviewPrompt) {
+      const reviewedKey = `reviewed_booking_${id}`;
+      const hasReviewed = localStorage.getItem(reviewedKey);
+      if (!hasReviewed) {
+        setShowReviewModal(true);
+        setHasShownReviewPrompt(true);
+      }
+    }
+  }, [booking?.status, hasShownReviewPrompt, id]);
+
+  const submitReviewMutation = useMutation({
+    mutationFn: async () => {
+      if (!booking) throw new Error("Booking not found");
+      return apiRequest("POST", `/api/services/${booking.serviceId}/reviews`, {
+        rating,
+        title: reviewTitle || undefined,
+        body: reviewBody || undefined,
+      });
+    },
+    onSuccess: () => {
+      localStorage.setItem(`reviewed_booking_${id}`, "true");
+      setShowReviewModal(false);
+      toast({ title: "Thank you!", description: "Your review has been submitted." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to submit review", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const handleSubmitReview = () => {
+    submitReviewMutation.mutate();
+  };
+
+  const handleSkipReview = () => {
+    localStorage.setItem(`reviewed_booking_${id}`, "skipped");
+    setShowReviewModal(false);
+  };
 
   const sendMessageMutation = useMutation({
     mutationFn: async ({ content, isPrivate, attachmentUrl, attachmentType }: { content: string; isPrivate: boolean; attachmentUrl?: string; attachmentType?: string }) => 
@@ -186,6 +235,78 @@ export default function CustomerBookingDetailPage() {
           </div>
         )}
       </div>
+
+      <Dialog open={showReviewModal} onOpenChange={setShowReviewModal}>
+        <DialogContent data-testid="dialog-review">
+          <DialogHeader>
+            <DialogTitle>How was your experience?</DialogTitle>
+            <DialogDescription>
+              Your feedback helps us improve our services. Please take a moment to rate your experience.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Rating</Label>
+              <div className="flex gap-1" data-testid="rating-stars">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={star}
+                    type="button"
+                    onClick={() => setRating(star)}
+                    className="p-1 hover-elevate rounded"
+                    data-testid={`button-star-${star}`}
+                  >
+                    <Star
+                      className={`h-6 w-6 ${
+                        star <= rating
+                          ? "fill-yellow-400 text-yellow-400"
+                          : "text-muted-foreground"
+                      }`}
+                    />
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="review-title">Title (optional)</Label>
+              <Input
+                id="review-title"
+                placeholder="Summarize your experience"
+                value={reviewTitle}
+                onChange={(e) => setReviewTitle(e.target.value)}
+                data-testid="input-review-title"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="review-body">Review (optional)</Label>
+              <Textarea
+                id="review-body"
+                placeholder="Tell us more about your experience..."
+                value={reviewBody}
+                onChange={(e) => setReviewBody(e.target.value)}
+                rows={4}
+                data-testid="input-review-body"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={handleSkipReview} data-testid="button-skip-review">
+              Skip
+            </Button>
+            <Button 
+              onClick={handleSubmitReview} 
+              disabled={submitReviewMutation.isPending}
+              data-testid="button-submit-review"
+            >
+              {submitReviewMutation.isPending ? "Submitting..." : "Submit Review"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }
