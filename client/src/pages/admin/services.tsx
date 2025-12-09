@@ -25,6 +25,14 @@ const serviceSchema = z.object({
   description: z.string().min(10, "Description must be at least 10 characters"),
   category: z.enum(["hardware", "software", "network", "security", "cloud", "consulting", "maintenance", "other"] as const),
   customCategory: z.string().optional(),
+}).refine((data) => {
+  if (data.category === "other") {
+    return data.customCategory && data.customCategory.trim().length >= 2;
+  }
+  return true;
+}, {
+  message: "Custom category name must be at least 2 characters",
+  path: ["customCategory"],
 });
 
 type ServiceForm = z.infer<typeof serviceSchema>;
