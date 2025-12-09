@@ -700,6 +700,14 @@ export async function registerRoutes(
 
       io.to(`chat:${req.params.id}`).emit("new_message", messageWithSender);
 
+      // When admin/staff replies, update booking status to in_progress
+      if (req.user!.role === "admin" || req.user!.role === "staff") {
+        const booking = await storage.getBooking(chat.bookingId);
+        if (booking && (booking.status === "pending" || booking.status === "confirmed")) {
+          await storage.updateBookingStatus(chat.bookingId, "in_progress");
+        }
+      }
+
       if (message.isQuotation && message.quotationAmount) {
         const booking = await storage.getBooking(chat.bookingId);
         if (booking) {
@@ -737,6 +745,11 @@ export async function registerRoutes(
       const chat = await storage.closeChat(req.params.id);
       if (!chat) {
         return res.status(404).json({ message: "Chat not found" });
+      }
+      
+      // When work is approved (chat closed), update booking status to completed
+      if (chat.bookingId) {
+        await storage.updateBookingStatus(chat.bookingId, "completed");
       }
       
       io.to(`chat:${req.params.id}`).emit("chat_closed", chat);
