@@ -18,6 +18,8 @@ export const users = pgTable("users", {
   profilePhoto: text("profile_photo"),
   role: userRoleEnum("role").notNull().default("customer"),
   approved: boolean("approved").notNull().default(false),
+  leaveDaysQuota: integer("leave_days_quota").notNull().default(0),
+  leaveDaysUsed: integer("leave_days_used").notNull().default(0),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

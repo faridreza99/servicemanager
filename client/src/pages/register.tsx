@@ -6,6 +6,7 @@ import { useMutation } from "@tanstack/react-query";
 import { Loader2, UserPlus, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -183,9 +184,8 @@ export default function RegisterPage() {
                     <FormItem>
                       <FormLabel>Password</FormLabel>
                       <FormControl>
-                        <Input 
+                        <PasswordInput 
                           placeholder="Create a password" 
-                          type="password" 
                           data-testid="input-password"
                           {...field} 
                         />
@@ -201,9 +201,8 @@ export default function RegisterPage() {
                     <FormItem>
                       <FormLabel>Confirm Password</FormLabel>
                       <FormControl>
-                        <Input 
+                        <PasswordInput 
                           placeholder="Confirm your password" 
-                          type="password" 
                           data-testid="input-confirm-password"
                           {...field} 
                         />

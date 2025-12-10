@@ -70,7 +70,8 @@ export interface IStorage {
   approveUser(id: string): Promise<User | undefined>;
   updateUserPassword(id: string, hashedPassword: string): Promise<User | undefined>;
   updateUserProfile(id: string, profile: UpdateProfile): Promise<User | undefined>;
-  updateUserByAdmin(id: string, updates: { name?: string; email?: string; phone?: string; role?: UserRole; approved?: boolean }): Promise<User | undefined>;
+  updateUserByAdmin(id: string, updates: { name?: string; email?: string; phone?: string; role?: UserRole; approved?: boolean; leaveDaysQuota?: number }): Promise<User | undefined>;
+  updateUserLeaveQuota(id: string, leaveDaysUsed: number): Promise<User | undefined>;
   deleteUser(id: string): Promise<boolean>;
 
   getServices(): Promise<Service[]>;
@@ -199,15 +200,21 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
-  async updateUserByAdmin(id: string, updates: { name?: string; email?: string; phone?: string; role?: UserRole; approved?: boolean }): Promise<User | undefined> {
-    const updateData: Partial<{ name: string; email: string; phone: string | null; role: UserRole; approved: boolean }> = {};
+  async updateUserByAdmin(id: string, updates: { name?: string; email?: string; phone?: string; role?: UserRole; approved?: boolean; leaveDaysQuota?: number }): Promise<User | undefined> {
+    const updateData: Partial<{ name: string; email: string; phone: string | null; role: UserRole; approved: boolean; leaveDaysQuota: number }> = {};
     if (updates.name !== undefined) updateData.name = updates.name;
     if (updates.email !== undefined) updateData.email = updates.email;
     if (updates.phone !== undefined) updateData.phone = updates.phone;
     if (updates.role !== undefined) updateData.role = updates.role;
     if (updates.approved !== undefined) updateData.approved = updates.approved;
+    if (updates.leaveDaysQuota !== undefined) updateData.leaveDaysQuota = updates.leaveDaysQuota;
     
     const [user] = await db.update(users).set(updateData).where(eq(users.id, id)).returning();
+    return user;
+  }
+
+  async updateUserLeaveQuota(id: string, leaveDaysUsed: number): Promise<User | undefined> {
+    const [user] = await db.update(users).set({ leaveDaysUsed }).where(eq(users.id, id)).returning();
     return user;
   }
 

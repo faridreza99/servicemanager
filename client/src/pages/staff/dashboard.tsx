@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { ClipboardList, CheckCircle, Clock, MapPin, Calendar, LogIn, LogOut, Loader2 } from "lucide-react";
+import { ClipboardList, CheckCircle, Clock, MapPin, Calendar, LogIn, LogOut, Loader2, AlertTriangle } from "lucide-react";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { StatCard } from "@/components/stat-card";
 import { TaskCard } from "@/components/task-card";
@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { getAuthHeader } from "@/lib/auth";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -22,6 +23,12 @@ import { z } from "zod";
 import { format } from "date-fns";
 import type { TaskWithDetails, Attendance, LeaveRequestWithDetails } from "@shared/schema";
 import { useState } from "react";
+
+interface LeaveQuota {
+  leaveDaysQuota: number;
+  leaveDaysUsed: number;
+  leaveDaysRemaining: number;
+}
 
 const leaveRequestSchema = z.object({
   leaveType: z.enum(["annual", "sick", "personal", "unpaid"]),
@@ -62,6 +69,15 @@ export default function StaffDashboard() {
     queryFn: async () => {
       const res = await fetch("/api/leave-requests/my", { headers: getAuthHeader() });
       if (!res.ok) throw new Error("Failed to fetch leave requests");
+      return res.json();
+    },
+  });
+
+  const { data: leaveQuota, isLoading: quotaLoading } = useQuery<LeaveQuota>({
+    queryKey: ["/api/leave-quota"],
+    queryFn: async () => {
+      const res = await fetch("/api/leave-quota", { headers: getAuthHeader() });
+      if (!res.ok) throw new Error("Failed to fetch leave quota");
       return res.json();
     },
   });
@@ -119,12 +135,15 @@ export default function StaffDashboard() {
     mutationFn: async (data: LeaveRequestForm) => apiRequest("POST", "/api/leave-requests", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/leave-requests/my"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/leave-quota"] });
       toast({ title: "Leave request submitted" });
       setLeaveDialogOpen(false);
       leaveRequestForm.reset();
     },
     onError: (error: Error) => toast({ title: "Failed to submit leave request", description: error.message, variant: "destructive" }),
   });
+
+  const isQuotaExhausted = leaveQuota && leaveQuota.leaveDaysRemaining <= 0;
 
   const handleClockAction = (action: "in" | "out") => {
     setLocationStatus("Fetching location...");
@@ -189,12 +208,28 @@ export default function StaffDashboard() {
   return (
     <DashboardLayout title="Staff Dashboard">
       <div className="max-w-7xl mx-auto p-6 space-y-8">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
           <StatCard title="Pending Tasks" value={pendingTasks.length} icon={<Clock className="h-4 w-4" />} description="Awaiting start" />
           <StatCard title="In Progress" value={inProgressTasks.length} icon={<ClipboardList className="h-4 w-4" />} description="Currently working" />
           <StatCard title="Completed" value={completedTasks.length} icon={<CheckCircle className="h-4 w-4" />} description="All time" />
           <StatCard title="Leave Requests" value={pendingLeaves.length} icon={<Calendar className="h-4 w-4" />} description="Pending approval" />
+          <StatCard 
+            title="Leave Days" 
+            value={quotaLoading ? "-" : (leaveQuota ? `${leaveQuota.leaveDaysRemaining}/${leaveQuota.leaveDaysQuota}` : "N/A")} 
+            icon={<Calendar className="h-4 w-4" />} 
+            description={isQuotaExhausted ? "Quota exhausted" : "Days remaining"} 
+          />
         </div>
+        
+        {isQuotaExhausted && (
+          <Alert variant="destructive" data-testid="leave-quota-exhausted-banner">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Leave Quota Exhausted</AlertTitle>
+            <AlertDescription>
+              You have used all your allocated leave days. Any additional leave requests will be unpaid.
+            </AlertDescription>
+          </Alert>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <Card>
@@ -299,6 +334,33 @@ export default function StaffDashboard() {
                     <DialogTitle>Request Leave</DialogTitle>
                     <DialogDescription>Submit a new leave request for approval</DialogDescription>
                   </DialogHeader>
+                  
+                  {quotaLoading ? (
+                    <Skeleton className="h-12 w-full" />
+                  ) : leaveQuota ? (
+                    <div className="p-3 rounded-md bg-muted/50 space-y-1" data-testid="leave-quota-display">
+                      <p className="text-sm text-muted-foreground">Leave Quota</p>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium">
+                          {leaveQuota.leaveDaysRemaining} / {leaveQuota.leaveDaysQuota} days remaining
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          ({leaveQuota.leaveDaysUsed} used)
+                        </span>
+                      </div>
+                    </div>
+                  ) : null}
+                  
+                  {isQuotaExhausted && (
+                    <Alert variant="destructive" data-testid="leave-quota-exhausted-alert">
+                      <AlertTriangle className="h-4 w-4" />
+                      <AlertTitle>Leave Quota Exhausted</AlertTitle>
+                      <AlertDescription>
+                        You have used all your allocated leave days. Any additional leave requests will be unpaid.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                  
                   <Form {...leaveRequestForm}>
                     <form onSubmit={leaveRequestForm.handleSubmit((data) => createLeaveRequestMutation.mutate(data))} className="space-y-4">
                       <FormField

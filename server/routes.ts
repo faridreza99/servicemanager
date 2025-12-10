@@ -454,10 +454,20 @@ export async function registerRoutes(
 
   app.get("/api/bookings/:id", authMiddleware, requireApproval, async (req: AuthenticatedRequest, res) => {
     try {
+      const user = req.user!;
       const booking = await storage.getBooking(req.params.id);
       if (!booking) {
         return res.status(404).json({ message: "Booking not found" });
       }
+      
+      // Access control: customers can only see their own bookings, staff can only see assigned bookings
+      if (user.role === "customer" && booking.customer.id !== user.userId) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      if (user.role === "staff" && booking.assignedStaff?.id !== user.userId) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
       res.json(booking);
     } catch (error) {
       console.error(error);
@@ -680,14 +690,15 @@ export async function registerRoutes(
   // Admin update user
   app.patch("/api/admin/users/:id", authMiddleware, requireRole("admin"), async (req: AuthenticatedRequest, res) => {
     try {
-      const { name, email, phone, role, approved } = req.body;
-      const updates: { name?: string; email?: string; phone?: string; role?: string; approved?: boolean } = {};
+      const { name, email, phone, role, approved, leaveDaysQuota } = req.body;
+      const updates: { name?: string; email?: string; phone?: string; role?: string; approved?: boolean; leaveDaysQuota?: number } = {};
       
       if (name !== undefined) updates.name = name;
       if (email !== undefined) updates.email = email;
       if (phone !== undefined) updates.phone = phone;
       if (role !== undefined && ["customer", "admin", "staff"].includes(role)) updates.role = role;
       if (approved !== undefined) updates.approved = approved;
+      if (leaveDaysQuota !== undefined && typeof leaveDaysQuota === "number" && leaveDaysQuota >= 0) updates.leaveDaysQuota = leaveDaysQuota;
 
       const user = await storage.updateUserByAdmin(req.params.id, updates as any);
       if (!user) {
@@ -1620,6 +1631,25 @@ export async function registerRoutes(
   });
 
   // Create leave request (staff)
+  // Get leave quota for staff
+  app.get("/api/leave-quota", authMiddleware, requireApproval, requireRole("staff"), async (req: AuthenticatedRequest, res) => {
+    try {
+      const staffId = req.user!.userId;
+      const staff = await storage.getUser(staffId);
+      if (!staff) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      res.json({
+        leaveDaysQuota: staff.leaveDaysQuota,
+        leaveDaysUsed: staff.leaveDaysUsed,
+        leaveDaysRemaining: staff.leaveDaysQuota - staff.leaveDaysUsed,
+      });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   app.post("/api/leave-requests", authMiddleware, requireApproval, requireRole("staff"), async (req: AuthenticatedRequest, res) => {
     try {
       const staffId = req.user!.userId;
@@ -1630,6 +1660,23 @@ export async function registerRoutes(
       const end = new Date(data.endDate);
       if (start > end) {
         return res.status(400).json({ message: "End date must be after start date" });
+      }
+      
+      // Calculate requested leave days
+      const requestedDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+      
+      // Check leave quota (only for non-unpaid leave)
+      if (data.leaveType !== "unpaid") {
+        const staff = await storage.getUser(staffId);
+        if (staff) {
+          const remaining = staff.leaveDaysQuota - staff.leaveDaysUsed;
+          if (remaining <= 0) {
+            return res.status(400).json({ message: "Your leave days quota has been exhausted. You can only request unpaid leave.", quotaExhausted: true });
+          }
+          if (requestedDays > remaining) {
+            return res.status(400).json({ message: `You only have ${remaining} leave days remaining. Please reduce your request or select unpaid leave.`, remaining });
+          }
+        }
       }
       
       const leaveRequest = await storage.createLeaveRequest({
@@ -1702,6 +1749,20 @@ export async function registerRoutes(
       
       if (leaveRequest.status !== "pending") {
         return res.status(400).json({ message: "Can only update pending leave requests" });
+      }
+      
+      // Calculate number of leave days
+      const startDate = new Date(leaveRequest.startDate);
+      const endDate = new Date(leaveRequest.endDate);
+      const leaveDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+      
+      // If approved, deduct from leave quota
+      if (status === "approved") {
+        const staff = await storage.getUser(leaveRequest.staffId);
+        if (staff) {
+          const newUsed = staff.leaveDaysUsed + leaveDays;
+          await storage.updateUserLeaveQuota(leaveRequest.staffId, newUsed);
+        }
       }
       
       const updated = await storage.updateLeaveRequestStatus(
