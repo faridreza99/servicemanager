@@ -1569,7 +1569,7 @@ export async function registerRoutes(
   // =====================
 
   const insertLeaveRequestSchema = z.object({
-    leaveType: z.enum(["annual", "sick", "personal", "unpaid"]),
+    leaveType: z.enum(["annual", "sick", "personal", "unpaid"] as const),
     startDate: z.string(),
     endDate: z.string(),
     reason: z.string().optional(),

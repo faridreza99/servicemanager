@@ -11,6 +11,8 @@ import {
   BarChart3,
   FileEdit,
   Star,
+  Clock,
+  CalendarDays,
 } from "lucide-react";
 import {
   Sidebar,
@@ -44,6 +46,8 @@ function getMenuItems(role: UserRole): { main: MenuItem[]; secondary?: MenuItem[
         { title: "Services", url: "/admin/services", icon: Briefcase },
         { title: "Bookings", url: "/admin/bookings", icon: Calendar },
         { title: "Tasks", url: "/admin/tasks", icon: ClipboardList },
+        { title: "Attendance", url: "/admin/attendance", icon: Clock },
+        { title: "Leave Requests", url: "/admin/leave-requests", icon: CalendarDays },
         { title: "Reviews", url: "/admin/reviews", icon: Star },
         { title: "Page Content", url: "/admin/page-content", icon: FileEdit },
       ],
