@@ -1456,5 +1456,231 @@ export async function registerRoutes(
     }
   });
 
+  // =====================
+  // ATTENDANCE ROUTES
+  // =====================
+
+  // Clock in for staff
+  app.post("/api/attendance/clock-in", authMiddleware, requireApproval, requireRole("staff"), async (req: AuthenticatedRequest, res) => {
+    try {
+      const staffId = req.user!.userId;
+      const today = new Date().toISOString().split('T')[0];
+      
+      // Check if already clocked in today
+      const existingAttendance = await storage.getTodayAttendance(staffId);
+      if (existingAttendance) {
+        if (existingAttendance.clockInTime) {
+          return res.status(400).json({ message: "Already clocked in today" });
+        }
+      }
+      
+      const { latitude, longitude, address } = req.body;
+      
+      const attendanceData = {
+        staffId,
+        date: today,
+        clockInTime: new Date(),
+        clockInLatitude: latitude || null,
+        clockInLongitude: longitude || null,
+        clockInAddress: address || null,
+        status: "present" as const,
+      };
+      
+      const attendance = await storage.createAttendance(attendanceData);
+      res.status(201).json(attendance);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Clock out for staff
+  app.post("/api/attendance/clock-out", authMiddleware, requireApproval, requireRole("staff"), async (req: AuthenticatedRequest, res) => {
+    try {
+      const staffId = req.user!.userId;
+      
+      // Get today's attendance record
+      const existingAttendance = await storage.getTodayAttendance(staffId);
+      if (!existingAttendance) {
+        return res.status(400).json({ message: "No clock-in record found for today" });
+      }
+      
+      if (existingAttendance.clockOutTime) {
+        return res.status(400).json({ message: "Already clocked out today" });
+      }
+      
+      const { latitude, longitude, address } = req.body;
+      
+      const updated = await storage.updateAttendance(existingAttendance.id, {
+        clockOutTime: new Date(),
+        clockOutLatitude: latitude || null,
+        clockOutLongitude: longitude || null,
+        clockOutAddress: address || null,
+      });
+      
+      res.json(updated);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Get my attendance records (staff)
+  app.get("/api/attendance/my", authMiddleware, requireApproval, requireRole("staff"), async (req: AuthenticatedRequest, res) => {
+    try {
+      const staffId = req.user!.userId;
+      const records = await storage.getAttendanceByStaffId(staffId);
+      res.json(records);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Get today's attendance status (staff)
+  app.get("/api/attendance/today", authMiddleware, requireApproval, requireRole("staff"), async (req: AuthenticatedRequest, res) => {
+    try {
+      const staffId = req.user!.userId;
+      const attendance = await storage.getTodayAttendance(staffId);
+      res.json(attendance || null);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Get all attendance records (admin)
+  app.get("/api/admin/attendance", authMiddleware, requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+    try {
+      const { startDate, endDate } = req.query;
+      const records = await storage.getAllAttendance(
+        startDate as string | undefined,
+        endDate as string | undefined
+      );
+      res.json(records);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // =====================
+  // LEAVE REQUEST ROUTES
+  // =====================
+
+  const insertLeaveRequestSchema = z.object({
+    leaveType: z.enum(["annual", "sick", "personal", "unpaid"]),
+    startDate: z.string(),
+    endDate: z.string(),
+    reason: z.string().optional(),
+  });
+
+  // Create leave request (staff)
+  app.post("/api/leave-requests", authMiddleware, requireApproval, requireRole("staff"), async (req: AuthenticatedRequest, res) => {
+    try {
+      const staffId = req.user!.userId;
+      const data = insertLeaveRequestSchema.parse(req.body);
+      
+      // Validate dates
+      const start = new Date(data.startDate);
+      const end = new Date(data.endDate);
+      if (start > end) {
+        return res.status(400).json({ message: "End date must be after start date" });
+      }
+      
+      const leaveRequest = await storage.createLeaveRequest({
+        staffId,
+        leaveType: data.leaveType,
+        startDate: data.startDate,
+        endDate: data.endDate,
+        reason: data.reason || null,
+      });
+      
+      // Notify admins
+      const admins = await storage.getUsersByRole("admin");
+      const staff = await storage.getUser(staffId);
+      for (const admin of admins) {
+        await storage.createNotification({
+          userId: admin.id,
+          type: "task",
+          title: "New Leave Request",
+          content: `${staff?.name || "A staff member"} has requested ${data.leaveType} leave from ${data.startDate} to ${data.endDate}`,
+        });
+      }
+      
+      res.status(201).json(leaveRequest);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: error.errors[0].message });
+      }
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Get my leave requests (staff)
+  app.get("/api/leave-requests/my", authMiddleware, requireApproval, requireRole("staff"), async (req: AuthenticatedRequest, res) => {
+    try {
+      const staffId = req.user!.userId;
+      const requests = await storage.getLeaveRequestsByStaffId(staffId);
+      res.json(requests);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Get all leave requests (admin)
+  app.get("/api/admin/leave-requests", authMiddleware, requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+    try {
+      const requests = await storage.getAllLeaveRequests();
+      res.json(requests);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Update leave request status (admin)
+  app.patch("/api/admin/leave-requests/:id/status", authMiddleware, requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+    try {
+      const { id } = req.params;
+      const { status, adminNotes } = req.body;
+      
+      if (!["approved", "rejected"].includes(status)) {
+        return res.status(400).json({ message: "Status must be 'approved' or 'rejected'" });
+      }
+      
+      const leaveRequest = await storage.getLeaveRequest(id);
+      if (!leaveRequest) {
+        return res.status(404).json({ message: "Leave request not found" });
+      }
+      
+      if (leaveRequest.status !== "pending") {
+        return res.status(400).json({ message: "Can only update pending leave requests" });
+      }
+      
+      const updated = await storage.updateLeaveRequestStatus(
+        id,
+        status,
+        req.user!.userId,
+        adminNotes
+      );
+      
+      // Notify staff member
+      await storage.createNotification({
+        userId: leaveRequest.staffId,
+        type: "task",
+        title: `Leave Request ${status === "approved" ? "Approved" : "Rejected"}`,
+        content: `Your ${leaveRequest.leaveType} leave request from ${leaveRequest.startDate} to ${leaveRequest.endDate} has been ${status}${adminNotes ? `. Note: ${adminNotes}` : ""}`,
+      });
+      
+      res.json(updated);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   return httpServer;
 }
