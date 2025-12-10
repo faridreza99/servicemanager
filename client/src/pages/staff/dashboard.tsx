@@ -140,7 +140,19 @@ export default function StaffDashboard() {
       setLeaveDialogOpen(false);
       leaveRequestForm.reset();
     },
-    onError: (error: Error) => toast({ title: "Failed to submit leave request", description: error.message, variant: "destructive" }),
+    onError: (error: Error) => {
+      let errorMessage = error.message;
+      try {
+        const jsonMatch = error.message.match(/\{.*\}/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          errorMessage = parsed.message || error.message;
+        }
+      } catch {
+        errorMessage = error.message;
+      }
+      toast({ title: "Failed to submit leave request", description: errorMessage, variant: "destructive" });
+    },
   });
 
   const isQuotaExhausted = Boolean(leaveQuota && leaveQuota.leaveDaysRemaining <= 0);
