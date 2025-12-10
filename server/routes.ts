@@ -677,6 +677,50 @@ export async function registerRoutes(
     }
   });
 
+  // Admin update user
+  app.patch("/api/admin/users/:id", authMiddleware, requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+    try {
+      const { name, email, phone, role, approved } = req.body;
+      const updates: { name?: string; email?: string; phone?: string; role?: string; approved?: boolean } = {};
+      
+      if (name !== undefined) updates.name = name;
+      if (email !== undefined) updates.email = email;
+      if (phone !== undefined) updates.phone = phone;
+      if (role !== undefined && ["customer", "admin", "staff"].includes(role)) updates.role = role;
+      if (approved !== undefined) updates.approved = approved;
+
+      const user = await storage.updateUserByAdmin(req.params.id, updates as any);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      res.json({ ...user, password: undefined });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Admin delete user
+  app.delete("/api/admin/users/:id", authMiddleware, requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+    try {
+      // Prevent admin from deleting themselves
+      if (req.params.id === req.user!.userId) {
+        return res.status(400).json({ message: "Cannot delete your own account" });
+      }
+
+      const deleted = await storage.deleteUser(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      res.json({ message: "User deleted successfully" });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   app.get("/api/chats/:id", authMiddleware, requireApproval, async (req: AuthenticatedRequest, res) => {
     try {
       const chat = await storage.getChat(req.params.id);
