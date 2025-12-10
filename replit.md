@@ -4,6 +4,10 @@
 
 This is a full-stack IT Service Management System built for managing service bookings, customer interactions, and staff task assignments. The platform enables customers to browse and book IT services, communicate with administrators through real-time chat, receive quotations, and track their service requests. Administrators can manage users, services, bookings, and assign tasks to staff members, while staff can view and complete assigned tasks.
 
+The platform includes comprehensive workforce management features:
+- **Attendance Tracking**: Staff can clock in/out with GPS location capture (latitude/longitude coordinates stored using doublePrecision type). Admins can view all attendance records with date filters and location links.
+- **Leave Management**: Staff can submit leave requests (annual, sick, personal, unpaid) with date ranges and reasons. Admins can approve/reject requests with notes.
+
 The application follows a role-based access control model with three distinct user roles: Customer, Admin, and Staff. All new users require admin approval before they can access the platform. Real-time communication is facilitated through WebSocket connections for instant messaging and notifications.
 
 ## User Preferences
