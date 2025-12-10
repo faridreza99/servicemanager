@@ -114,7 +114,7 @@ export default function AdminChatPage() {
     <DashboardLayout title="Chat">
       <div className="flex flex-col h-[calc(100vh-4rem)]">
         <div className="flex items-center justify-between gap-4 p-4 border-b">
-          <Button variant="ghost" onClick={() => setLocation("/admin/chats")} data-testid="button-back"><ArrowLeft className="mr-2 h-4 w-4" />Back to Chats</Button>
+          <Button variant="ghost" onClick={() => setLocation("/admin/bookings")} data-testid="button-back"><ArrowLeft className="mr-2 h-4 w-4" />Back to Bookings</Button>
           {chat && (
             <Button variant="outline" onClick={handleDownloadTranscript} data-testid="button-download-transcript"><Download className="mr-2 h-4 w-4" />Download Transcript</Button>
           )}

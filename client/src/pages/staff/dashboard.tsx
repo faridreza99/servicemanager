@@ -73,7 +73,7 @@ export default function StaffDashboard() {
     },
   });
 
-  const { data: leaveQuota, isLoading: quotaLoading } = useQuery<LeaveQuota>({
+  const { data: leaveQuota, isLoading: quotaLoading, isError: quotaError } = useQuery<LeaveQuota>({
     queryKey: ["/api/leave-quota"],
     queryFn: async () => {
       const res = await fetch("/api/leave-quota", { headers: getAuthHeader() });
@@ -143,7 +143,8 @@ export default function StaffDashboard() {
     onError: (error: Error) => toast({ title: "Failed to submit leave request", description: error.message, variant: "destructive" }),
   });
 
-  const isQuotaExhausted = leaveQuota && leaveQuota.leaveDaysRemaining <= 0;
+  const isQuotaExhausted = Boolean(leaveQuota && leaveQuota.leaveDaysRemaining <= 0);
+  const isQuotaUnavailable = quotaLoading || quotaError || !leaveQuota;
 
   const handleClockAction = (action: "in" | "out") => {
     setLocationStatus("Fetching location...");
@@ -327,7 +328,7 @@ export default function StaffDashboard() {
               </div>
               <Dialog open={leaveDialogOpen} onOpenChange={setLeaveDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button size="sm" data-testid="button-new-leave-request">New Request</Button>
+                  <Button size="sm" disabled={isQuotaExhausted || isQuotaUnavailable} data-testid="button-new-leave-request">New Request</Button>
                 </DialogTrigger>
                 <DialogContent>
                   <DialogHeader>

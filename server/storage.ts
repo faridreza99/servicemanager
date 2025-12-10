@@ -219,8 +219,56 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteUser(id: string): Promise<boolean> {
-    const result = await db.delete(users).where(eq(users.id, id)).returning();
-    return result.length > 0;
+    // Use a transaction to ensure all-or-nothing deletion
+    return await db.transaction(async (tx) => {
+      // Delete related records first to avoid foreign key constraint violations
+      // Order matters: delete dependent tables first
+      
+      // Delete attendance records for staff
+      await tx.delete(attendance).where(eq(attendance.staffId, id));
+      
+      // Delete leave requests for staff
+      await tx.delete(leaveRequests).where(eq(leaveRequests.staffId, id));
+      
+      // Delete notifications for user
+      await tx.delete(notifications).where(eq(notifications.userId, id));
+      
+      // Delete reviews by user
+      await tx.delete(reviews).where(eq(reviews.userId, id));
+      
+      // Delete tasks assigned to staff
+      await tx.delete(tasks).where(eq(tasks.staffId, id));
+      
+      // Delete messages sent by user
+      await tx.delete(messages).where(eq(messages.senderId, id));
+      
+      // For bookings where user is customer, we need to handle chats and related data
+      // Get bookings where user is customer
+      const customerBookings = await tx.select().from(bookings).where(eq(bookings.customerId, id));
+      for (const booking of customerBookings) {
+        // Delete messages in chat
+        const bookingChats = await tx.select().from(chats).where(eq(chats.bookingId, booking.id));
+        for (const chat of bookingChats) {
+          await tx.delete(messages).where(eq(messages.chatId, chat.id));
+        }
+        // Delete chats
+        await tx.delete(chats).where(eq(chats.bookingId, booking.id));
+        // Delete tasks
+        await tx.delete(tasks).where(eq(tasks.bookingId, booking.id));
+      }
+      // Delete bookings where user is customer
+      await tx.delete(bookings).where(eq(bookings.customerId, id));
+      
+      // Unassign staff from bookings (set assignedStaffId to null)
+      await tx.update(bookings).set({ assignedStaffId: null }).where(eq(bookings.assignedStaffId, id));
+      
+      // Clear approvedBy in leave requests (set to null)
+      await tx.update(leaveRequests).set({ approvedBy: null }).where(eq(leaveRequests.approvedBy, id));
+      
+      // Now delete the user
+      const result = await tx.delete(users).where(eq(users.id, id)).returning();
+      return result.length > 0;
+    });
   }
 
   async getServices(): Promise<Service[]> {

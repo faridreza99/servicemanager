@@ -85,7 +85,7 @@ export default function StaffChatPage() {
     <DashboardLayout title="Chat">
       <div className="flex flex-col h-[calc(100vh-4rem)]">
         <div className="p-4 border-b">
-          <Button variant="ghost" onClick={() => setLocation("/staff/chats")} data-testid="button-back"><ArrowLeft className="mr-2 h-4 w-4" />Back to Chats</Button>
+          <Button variant="ghost" onClick={() => setLocation("/staff")} data-testid="button-back"><ArrowLeft className="mr-2 h-4 w-4" />Back to Dashboard</Button>
         </div>
 
         {isLoading ? (
