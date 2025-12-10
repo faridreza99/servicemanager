@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, boolean, timestamp, integer, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, boolean, timestamp, integer, pgEnum, date, doublePrecision } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -434,3 +434,102 @@ export type ContactPageContent = {
     hours: string;
   }>;
 };
+
+// Attendance and Leave Management Enums
+export const attendanceStatusEnum = pgEnum("attendance_status", ["present", "absent", "late", "half_day"]);
+export const leaveTypeEnum = pgEnum("leave_type", ["annual", "sick", "personal", "unpaid"]);
+export const leaveStatusEnum = pgEnum("leave_status", ["pending", "approved", "rejected"]);
+
+// Attendance table for staff clock in/out with geolocation
+export const attendance = pgTable("attendance", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  staffId: varchar("staff_id").notNull().references(() => users.id),
+  date: date("date").notNull(),
+  clockInTime: timestamp("clock_in_time"),
+  clockInLatitude: doublePrecision("clock_in_latitude"),
+  clockInLongitude: doublePrecision("clock_in_longitude"),
+  clockInAddress: text("clock_in_address"),
+  clockOutTime: timestamp("clock_out_time"),
+  clockOutLatitude: doublePrecision("clock_out_latitude"),
+  clockOutLongitude: doublePrecision("clock_out_longitude"),
+  clockOutAddress: text("clock_out_address"),
+  status: attendanceStatusEnum("status").notNull().default("present"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const attendanceRelations = relations(attendance, ({ one }) => ({
+  staff: one(users, {
+    fields: [attendance.staffId],
+    references: [users.id],
+  }),
+}));
+
+// Leave requests table for staff leave management
+export const leaveRequests = pgTable("leave_requests", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  staffId: varchar("staff_id").notNull().references(() => users.id),
+  leaveType: leaveTypeEnum("leave_type").notNull(),
+  startDate: date("start_date").notNull(),
+  endDate: date("end_date").notNull(),
+  reason: text("reason"),
+  status: leaveStatusEnum("status").notNull().default("pending"),
+  approvedBy: varchar("approved_by").references(() => users.id),
+  adminNotes: text("admin_notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const leaveRequestsRelations = relations(leaveRequests, ({ one }) => ({
+  staff: one(users, {
+    fields: [leaveRequests.staffId],
+    references: [users.id],
+    relationName: "staffLeaveRequests",
+  }),
+  approver: one(users, {
+    fields: [leaveRequests.approvedBy],
+    references: [users.id],
+    relationName: "approvedLeaveRequests",
+  }),
+}));
+
+// Insert schemas for attendance and leave requests
+export const insertAttendanceSchema = createInsertSchema(attendance).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertLeaveRequestSchema = createInsertSchema(leaveRequests).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  status: true,
+  approvedBy: true,
+  adminNotes: true,
+});
+
+// Types for attendance and leave requests
+export type Attendance = typeof attendance.$inferSelect;
+export type InsertAttendance = z.infer<typeof insertAttendanceSchema>;
+export type LeaveRequest = typeof leaveRequests.$inferSelect;
+export type InsertLeaveRequest = z.infer<typeof insertLeaveRequestSchema>;
+
+export type AttendanceStatus = "present" | "absent" | "late" | "half_day";
+export type LeaveType = "annual" | "sick" | "personal" | "unpaid";
+export type LeaveStatus = "pending" | "approved" | "rejected";
+
+// Extended types with user details
+export type AttendanceWithStaff = Attendance & {
+  staff: User;
+};
+
+export type LeaveRequestWithDetails = LeaveRequest & {
+  staff: User;
+  approver?: User;
+};
+
+export const LEAVE_TYPES: { value: LeaveType; label: string }[] = [
+  { value: "annual", label: "Annual Leave" },
+  { value: "sick", label: "Sick Leave" },
+  { value: "personal", label: "Personal Leave" },
+  { value: "unpaid", label: "Unpaid Leave" },
+];
