@@ -1,4 +1,4 @@
-import { eq, and, desc, or, ilike, avg, count, sql } from "drizzle-orm";
+import { eq, and, desc, or, ilike, avg, count, sql, gte, lte } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "./db";
 import {
@@ -14,6 +14,8 @@ import {
   reviews,
   contactMessages,
   pageContent,
+  attendance,
+  leaveRequests,
   type User,
   type InsertUser,
   type Service,
@@ -50,6 +52,13 @@ import {
   type ContactMessageStatus,
   type ServiceWithRating,
   type PageContent,
+  type Attendance,
+  type InsertAttendance,
+  type AttendanceWithStaff,
+  type LeaveRequest,
+  type InsertLeaveRequest,
+  type LeaveRequestWithDetails,
+  type LeaveStatus,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -128,6 +137,20 @@ export interface IStorage {
   getPageContent(pageKey: string): Promise<Record<string, any>>;
   getPageSection(pageKey: string, sectionKey: string): Promise<any | undefined>;
   upsertPageContent(pageKey: string, sectionKey: string, content: any): Promise<PageContent>;
+
+  // Attendance methods
+  createAttendance(data: Partial<InsertAttendance>): Promise<Attendance>;
+  getAttendanceByStaffId(staffId: string): Promise<AttendanceWithStaff[]>;
+  getTodayAttendance(staffId: string): Promise<Attendance | undefined>;
+  updateAttendance(id: string, updates: Partial<Attendance>): Promise<Attendance | undefined>;
+  getAllAttendance(startDate?: string, endDate?: string): Promise<AttendanceWithStaff[]>;
+
+  // Leave request methods
+  createLeaveRequest(data: InsertLeaveRequest): Promise<LeaveRequest>;
+  getLeaveRequestsByStaffId(staffId: string): Promise<LeaveRequestWithDetails[]>;
+  getLeaveRequest(id: string): Promise<LeaveRequestWithDetails | undefined>;
+  getAllLeaveRequests(): Promise<LeaveRequestWithDetails[]>;
+  updateLeaveRequestStatus(id: string, status: LeaveStatus, approvedBy: string, adminNotes?: string): Promise<LeaveRequest | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -786,6 +809,132 @@ export class DatabaseStorage implements IStorage {
     
     const [created] = await db.insert(pageContent).values({ pageKey, sectionKey, content: contentStr }).returning();
     return created;
+  }
+
+  // Attendance methods
+  async createAttendance(data: Partial<InsertAttendance>): Promise<Attendance> {
+    const [created] = await db.insert(attendance).values(data as InsertAttendance).returning();
+    return created;
+  }
+
+  async getAttendanceByStaffId(staffId: string): Promise<AttendanceWithStaff[]> {
+    const result = await db
+      .select()
+      .from(attendance)
+      .leftJoin(users, eq(attendance.staffId, users.id))
+      .where(eq(attendance.staffId, staffId))
+      .orderBy(desc(attendance.date));
+
+    return result.map((row) => ({
+      ...row.attendance,
+      staff: row.users!,
+    }));
+  }
+
+  async getTodayAttendance(staffId: string): Promise<Attendance | undefined> {
+    const today = new Date().toISOString().split('T')[0];
+    const [record] = await db
+      .select()
+      .from(attendance)
+      .where(and(eq(attendance.staffId, staffId), eq(attendance.date, today)));
+    return record;
+  }
+
+  async updateAttendance(id: string, updates: Partial<Attendance>): Promise<Attendance | undefined> {
+    const [updated] = await db
+      .update(attendance)
+      .set(updates)
+      .where(eq(attendance.id, id))
+      .returning();
+    return updated;
+  }
+
+  async getAllAttendance(startDate?: string, endDate?: string): Promise<AttendanceWithStaff[]> {
+    const conditions = [];
+    
+    if (startDate) {
+      conditions.push(gte(attendance.date, startDate));
+    }
+    if (endDate) {
+      conditions.push(lte(attendance.date, endDate));
+    }
+
+    const result = await db
+      .select()
+      .from(attendance)
+      .leftJoin(users, eq(attendance.staffId, users.id))
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(attendance.date));
+
+    return result.map((row) => ({
+      ...row.attendance,
+      staff: row.users!,
+    }));
+  }
+
+  // Leave request methods
+  async createLeaveRequest(data: InsertLeaveRequest): Promise<LeaveRequest> {
+    const [created] = await db.insert(leaveRequests).values(data).returning();
+    return created;
+  }
+
+  async getLeaveRequestsByStaffId(staffId: string): Promise<LeaveRequestWithDetails[]> {
+    const approverUsers = alias(users, "approver_users");
+    const result = await db
+      .select()
+      .from(leaveRequests)
+      .leftJoin(users, eq(leaveRequests.staffId, users.id))
+      .leftJoin(approverUsers, eq(leaveRequests.approvedBy, approverUsers.id))
+      .where(eq(leaveRequests.staffId, staffId))
+      .orderBy(desc(leaveRequests.createdAt));
+
+    return result.map((row) => ({
+      ...row.leave_requests,
+      staff: row.users!,
+      approver: row.approver_users || undefined,
+    }));
+  }
+
+  async getLeaveRequest(id: string): Promise<LeaveRequestWithDetails | undefined> {
+    const approverUsers = alias(users, "approver_users");
+    const result = await db
+      .select()
+      .from(leaveRequests)
+      .leftJoin(users, eq(leaveRequests.staffId, users.id))
+      .leftJoin(approverUsers, eq(leaveRequests.approvedBy, approverUsers.id))
+      .where(eq(leaveRequests.id, id));
+
+    if (result.length === 0) return undefined;
+    return {
+      ...result[0].leave_requests,
+      staff: result[0].users!,
+      approver: result[0].approver_users || undefined,
+    };
+  }
+
+  async getAllLeaveRequests(): Promise<LeaveRequestWithDetails[]> {
+    const approverUsers = alias(users, "approver_users");
+    const result = await db
+      .select()
+      .from(leaveRequests)
+      .leftJoin(users, eq(leaveRequests.staffId, users.id))
+      .leftJoin(approverUsers, eq(leaveRequests.approvedBy, approverUsers.id))
+      .orderBy(desc(leaveRequests.createdAt));
+
+    return result.map((row) => ({
+      ...row.leave_requests,
+      staff: row.users!,
+      approver: row.approver_users || undefined,
+    }));
+  }
+
+  async updateLeaveRequestStatus(id: string, status: LeaveStatus, approvedBy: string, adminNotes?: string): Promise<LeaveRequest | undefined> {
+    const [updated] = await db
+      .update(leaveRequests)
+      .set({ status, approvedBy, adminNotes, updatedAt: new Date() })
+      .where(eq(leaveRequests.id, id))
+      .returning();
+    return updated;
   }
 }
 
