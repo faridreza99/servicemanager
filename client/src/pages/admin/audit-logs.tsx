@@ -25,18 +25,29 @@ interface AuditLogsResponse {
 const actionLabels: Record<string, { label: string; icon: typeof LogIn; color: string }> = {
   login: { label: "Login", icon: LogIn, color: "bg-green-500/10 text-green-600" },
   logout: { label: "Logout", icon: LogOut, color: "bg-gray-500/10 text-gray-600" },
-  user_approval: { label: "User Approval", icon: CheckCircle, color: "bg-blue-500/10 text-blue-600" },
-  user_rejection: { label: "User Rejection", icon: XCircle, color: "bg-red-500/10 text-red-600" },
-  booking_created: { label: "Booking Created", icon: Calendar, color: "bg-purple-500/10 text-purple-600" },
-  booking_updated: { label: "Booking Updated", icon: Calendar, color: "bg-purple-500/10 text-purple-600" },
-  booking_cancelled: { label: "Booking Cancelled", icon: XCircle, color: "bg-red-500/10 text-red-600" },
-  task_created: { label: "Task Created", icon: FileText, color: "bg-orange-500/10 text-orange-600" },
-  task_updated: { label: "Task Updated", icon: FileText, color: "bg-orange-500/10 text-orange-600" },
+  user_register: { label: "User Register", icon: User, color: "bg-blue-500/10 text-blue-600" },
+  user_approve: { label: "User Approved", icon: CheckCircle, color: "bg-blue-500/10 text-blue-600" },
+  user_reject: { label: "User Rejected", icon: XCircle, color: "bg-red-500/10 text-red-600" },
+  user_update: { label: "User Updated", icon: User, color: "bg-blue-500/10 text-blue-600" },
+  user_delete: { label: "User Deleted", icon: XCircle, color: "bg-red-500/10 text-red-600" },
+  booking_create: { label: "Booking Created", icon: Calendar, color: "bg-purple-500/10 text-purple-600" },
+  booking_update: { label: "Booking Updated", icon: Calendar, color: "bg-purple-500/10 text-purple-600" },
+  booking_assign: { label: "Booking Assigned", icon: Calendar, color: "bg-purple-500/10 text-purple-600" },
+  booking_delete: { label: "Booking Deleted", icon: XCircle, color: "bg-red-500/10 text-red-600" },
+  task_create: { label: "Task Created", icon: FileText, color: "bg-orange-500/10 text-orange-600" },
+  task_update: { label: "Task Updated", icon: FileText, color: "bg-orange-500/10 text-orange-600" },
+  task_complete: { label: "Task Completed", icon: CheckCircle, color: "bg-green-500/10 text-green-600" },
+  leave_request: { label: "Leave Requested", icon: Calendar, color: "bg-yellow-500/10 text-yellow-600" },
+  leave_approve: { label: "Leave Approved", icon: CheckCircle, color: "bg-green-500/10 text-green-600" },
+  leave_reject: { label: "Leave Rejected", icon: XCircle, color: "bg-red-500/10 text-red-600" },
+  attendance_clock_in: { label: "Clock In", icon: Clock, color: "bg-green-500/10 text-green-600" },
+  attendance_clock_out: { label: "Clock Out", icon: Clock, color: "bg-gray-500/10 text-gray-600" },
+  service_create: { label: "Service Created", icon: FileText, color: "bg-indigo-500/10 text-indigo-600" },
+  service_update: { label: "Service Updated", icon: FileText, color: "bg-indigo-500/10 text-indigo-600" },
+  service_delete: { label: "Service Deleted", icon: XCircle, color: "bg-red-500/10 text-red-600" },
   notification_broadcast: { label: "Broadcast Sent", icon: Megaphone, color: "bg-cyan-500/10 text-cyan-600" },
-  service_created: { label: "Service Created", icon: FileText, color: "bg-indigo-500/10 text-indigo-600" },
-  service_updated: { label: "Service Updated", icon: FileText, color: "bg-indigo-500/10 text-indigo-600" },
-  leave_approved: { label: "Leave Approved", icon: CheckCircle, color: "bg-green-500/10 text-green-600" },
-  leave_rejected: { label: "Leave Rejected", icon: XCircle, color: "bg-red-500/10 text-red-600" },
+  settings_update: { label: "Settings Updated", icon: Shield, color: "bg-gray-500/10 text-gray-600" },
+  file_upload: { label: "File Uploaded", icon: FileText, color: "bg-blue-500/10 text-blue-600" },
 };
 
 const roleColors: Record<string, string> = {
@@ -109,20 +120,28 @@ export default function AdminAuditLogsPage() {
                     <SelectValue placeholder="All actions" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Actions</SelectItem>
-                    <SelectItem value="login">Login</SelectItem>
-                    <SelectItem value="logout">Logout</SelectItem>
-                    <SelectItem value="user_approval">User Approval</SelectItem>
-                    <SelectItem value="user_rejection">User Rejection</SelectItem>
-                    <SelectItem value="booking_created">Booking Created</SelectItem>
-                    <SelectItem value="booking_updated">Booking Updated</SelectItem>
-                    <SelectItem value="task_created">Task Created</SelectItem>
-                    <SelectItem value="task_updated">Task Updated</SelectItem>
-                    <SelectItem value="notification_broadcast">Broadcast Sent</SelectItem>
-                    <SelectItem value="service_created">Service Created</SelectItem>
-                    <SelectItem value="service_updated">Service Updated</SelectItem>
-                    <SelectItem value="leave_approved">Leave Approved</SelectItem>
-                    <SelectItem value="leave_rejected">Leave Rejected</SelectItem>
+                    <SelectItem value="all" data-testid="option-action-all">All Actions</SelectItem>
+                    <SelectItem value="login" data-testid="option-action-login">Login</SelectItem>
+                    <SelectItem value="logout" data-testid="option-action-logout">Logout</SelectItem>
+                    <SelectItem value="user_register" data-testid="option-action-user-register">User Register</SelectItem>
+                    <SelectItem value="user_approve" data-testid="option-action-user-approve">User Approved</SelectItem>
+                    <SelectItem value="user_reject" data-testid="option-action-user-reject">User Rejected</SelectItem>
+                    <SelectItem value="user_update" data-testid="option-action-user-update">User Updated</SelectItem>
+                    <SelectItem value="booking_create" data-testid="option-action-booking-create">Booking Created</SelectItem>
+                    <SelectItem value="booking_update" data-testid="option-action-booking-update">Booking Updated</SelectItem>
+                    <SelectItem value="booking_assign" data-testid="option-action-booking-assign">Booking Assigned</SelectItem>
+                    <SelectItem value="task_create" data-testid="option-action-task-create">Task Created</SelectItem>
+                    <SelectItem value="task_update" data-testid="option-action-task-update">Task Updated</SelectItem>
+                    <SelectItem value="task_complete" data-testid="option-action-task-complete">Task Completed</SelectItem>
+                    <SelectItem value="leave_request" data-testid="option-action-leave-request">Leave Requested</SelectItem>
+                    <SelectItem value="leave_approve" data-testid="option-action-leave-approve">Leave Approved</SelectItem>
+                    <SelectItem value="leave_reject" data-testid="option-action-leave-reject">Leave Rejected</SelectItem>
+                    <SelectItem value="attendance_clock_in" data-testid="option-action-clock-in">Clock In</SelectItem>
+                    <SelectItem value="attendance_clock_out" data-testid="option-action-clock-out">Clock Out</SelectItem>
+                    <SelectItem value="service_create" data-testid="option-action-service-create">Service Created</SelectItem>
+                    <SelectItem value="service_update" data-testid="option-action-service-update">Service Updated</SelectItem>
+                    <SelectItem value="notification_broadcast" data-testid="option-action-broadcast">Broadcast Sent</SelectItem>
+                    <SelectItem value="settings_update" data-testid="option-action-settings-update">Settings Updated</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -134,10 +153,10 @@ export default function AdminAuditLogsPage() {
                     <SelectValue placeholder="All roles" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Roles</SelectItem>
-                    <SelectItem value="admin">Admin</SelectItem>
-                    <SelectItem value="staff">Staff</SelectItem>
-                    <SelectItem value="customer">Customer</SelectItem>
+                    <SelectItem value="all" data-testid="option-role-all">All Roles</SelectItem>
+                    <SelectItem value="admin" data-testid="option-role-admin">Admin</SelectItem>
+                    <SelectItem value="staff" data-testid="option-role-staff">Staff</SelectItem>
+                    <SelectItem value="customer" data-testid="option-role-customer">Customer</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
