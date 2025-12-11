@@ -16,6 +16,7 @@ import {
   pageContent,
   attendance,
   leaveRequests,
+  auditLogs,
   type User,
   type InsertUser,
   type Service,
@@ -59,6 +60,10 @@ import {
   type InsertLeaveRequest,
   type LeaveRequestWithDetails,
   type LeaveStatus,
+  type AuditLog,
+  type InsertAuditLog,
+  type AuditLogWithActor,
+  type AuditAction,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -154,6 +159,15 @@ export interface IStorage {
   getLeaveRequest(id: string): Promise<LeaveRequestWithDetails | undefined>;
   getAllLeaveRequests(): Promise<LeaveRequestWithDetails[]>;
   updateLeaveRequestStatus(id: string, status: LeaveStatus, approvedBy: string, adminNotes?: string): Promise<LeaveRequest | undefined>;
+
+  // Audit log methods
+  createAuditLog(data: InsertAuditLog): Promise<AuditLog>;
+  getAuditLogs(filters?: { action?: AuditAction; actorRole?: UserRole; startDate?: string; endDate?: string; limit?: number; offset?: number }): Promise<AuditLogWithActor[]>;
+  getAuditLogsCount(filters?: { action?: AuditAction; actorRole?: UserRole; startDate?: string; endDate?: string }): Promise<number>;
+
+  // Broadcast notification methods
+  getBroadcastNotifications(userId: string): Promise<Notification[]>;
+  getUnreadBroadcasts(userId: string): Promise<Notification[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1009,6 +1023,97 @@ export class DatabaseStorage implements IStorage {
       .where(eq(leaveRequests.id, id))
       .returning();
     return updated;
+  }
+
+  // Audit log methods
+  async createAuditLog(data: InsertAuditLog): Promise<AuditLog> {
+    const [created] = await db.insert(auditLogs).values(data).returning();
+    return created;
+  }
+
+  async getAuditLogs(filters?: { action?: AuditAction; actorRole?: UserRole; startDate?: string; endDate?: string; limit?: number; offset?: number }): Promise<AuditLogWithActor[]> {
+    const conditions: any[] = [];
+    
+    if (filters?.action) {
+      conditions.push(eq(auditLogs.action, filters.action));
+    }
+    if (filters?.actorRole) {
+      conditions.push(eq(auditLogs.actorRole, filters.actorRole));
+    }
+    if (filters?.startDate) {
+      conditions.push(gte(auditLogs.createdAt, new Date(filters.startDate)));
+    }
+    if (filters?.endDate) {
+      conditions.push(lte(auditLogs.createdAt, new Date(filters.endDate)));
+    }
+
+    const query = db
+      .select()
+      .from(auditLogs)
+      .leftJoin(users, eq(auditLogs.actorId, users.id))
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(auditLogs.createdAt));
+
+    if (filters?.limit) {
+      query.limit(filters.limit);
+    }
+    if (filters?.offset) {
+      query.offset(filters.offset);
+    }
+
+    const result = await query;
+    return result.map((row) => ({
+      ...row.audit_logs,
+      actor: row.users || undefined,
+    }));
+  }
+
+  async getAuditLogsCount(filters?: { action?: AuditAction; actorRole?: UserRole; startDate?: string; endDate?: string }): Promise<number> {
+    const conditions: any[] = [];
+    
+    if (filters?.action) {
+      conditions.push(eq(auditLogs.action, filters.action));
+    }
+    if (filters?.actorRole) {
+      conditions.push(eq(auditLogs.actorRole, filters.actorRole));
+    }
+    if (filters?.startDate) {
+      conditions.push(gte(auditLogs.createdAt, new Date(filters.startDate)));
+    }
+    if (filters?.endDate) {
+      conditions.push(lte(auditLogs.createdAt, new Date(filters.endDate)));
+    }
+
+    const result = await db
+      .select({ count: count() })
+      .from(auditLogs)
+      .where(conditions.length > 0 ? and(...conditions) : undefined);
+
+    return result[0]?.count || 0;
+  }
+
+  // Broadcast notification methods
+  async getBroadcastNotifications(userId: string): Promise<Notification[]> {
+    return db
+      .select()
+      .from(notifications)
+      .where(and(
+        eq(notifications.userId, userId),
+        eq(notifications.type, "broadcast")
+      ))
+      .orderBy(desc(notifications.createdAt));
+  }
+
+  async getUnreadBroadcasts(userId: string): Promise<Notification[]> {
+    return db
+      .select()
+      .from(notifications)
+      .where(and(
+        eq(notifications.userId, userId),
+        eq(notifications.type, "broadcast"),
+        eq(notifications.read, false)
+      ))
+      .orderBy(desc(notifications.createdAt));
   }
 }
 

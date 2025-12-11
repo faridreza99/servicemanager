@@ -159,6 +159,21 @@ export async function registerRoutes(
       }
 
       const token = signToken(user);
+      
+      // Create audit log for login
+      try {
+        await storage.createAuditLog({
+          action: "login",
+          actorId: user.id,
+          actorEmail: user.email,
+          actorRole: user.role,
+          ipAddress: req.ip || req.headers["x-forwarded-for"]?.toString(),
+          userAgent: req.headers["user-agent"],
+        });
+      } catch (e) {
+        console.error("Failed to create audit log:", e);
+      }
+      
       res.json({
         user: { ...user, password: undefined },
         token,
@@ -1073,13 +1088,27 @@ export async function registerRoutes(
         targetUsers.map(user => 
           storage.createNotification({
             userId: user.id,
-            type: "message",
+            type: "broadcast",
             title,
             content,
             attachments: validatedAttachments,
           })
         )
       );
+
+      // Create audit log for broadcast
+      try {
+        await storage.createAuditLog({
+          action: "notification_broadcast",
+          actorId: req.user!.userId,
+          actorEmail: req.user!.email,
+          actorRole: req.user!.role,
+          targetType: "notification",
+          metadata: JSON.stringify({ targetRole, recipientCount: notifications.length, title }),
+        });
+      } catch (e) {
+        console.error("Failed to create audit log:", e);
+      }
 
       res.json({ 
         success: true, 
@@ -1836,6 +1865,110 @@ export async function registerRoutes(
       });
       
       res.json(updated);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Logout endpoint with audit logging
+  app.post("/api/auth/logout", authMiddleware, async (req: AuthenticatedRequest, res) => {
+    try {
+      await storage.createAuditLog({
+        action: "logout",
+        actorId: req.user!.userId,
+        actorEmail: req.user!.email,
+        actorRole: req.user!.role,
+        ipAddress: req.ip || req.headers["x-forwarded-for"]?.toString(),
+        userAgent: req.headers["user-agent"],
+      });
+      res.json({ success: true });
+    } catch (error) {
+      console.error(error);
+      res.json({ success: true }); // Still return success even if audit log fails
+    }
+  });
+
+  // Get unread broadcasts for popup
+  app.get("/api/notifications/unread-broadcasts", authMiddleware, async (req: AuthenticatedRequest, res) => {
+    try {
+      const broadcasts = await storage.getUnreadBroadcasts(req.user!.userId);
+      res.json(broadcasts);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Get all broadcasts for user
+  app.get("/api/notifications/broadcasts", authMiddleware, async (req: AuthenticatedRequest, res) => {
+    try {
+      const broadcasts = await storage.getBroadcastNotifications(req.user!.userId);
+      res.json(broadcasts);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Admin audit logs endpoints
+  app.get("/api/admin/audit-logs", authMiddleware, requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+    try {
+      const { action, actorRole, startDate, endDate, limit = "50", offset = "0" } = req.query;
+      
+      const filters: any = {
+        limit: parseInt(limit as string),
+        offset: parseInt(offset as string),
+      };
+      
+      if (action && action !== "all") filters.action = action;
+      if (actorRole && actorRole !== "all") filters.actorRole = actorRole;
+      if (startDate) filters.startDate = startDate;
+      if (endDate) filters.endDate = endDate;
+
+      const [logs, totalCount] = await Promise.all([
+        storage.getAuditLogs(filters),
+        storage.getAuditLogsCount(filters),
+      ]);
+
+      res.json({
+        logs,
+        pagination: {
+          total: totalCount,
+          limit: filters.limit,
+          offset: filters.offset,
+        },
+      });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Staff dashboard data endpoint
+  app.get("/api/staff/dashboard", authMiddleware, requireRole("staff"), async (req: AuthenticatedRequest, res) => {
+    try {
+      const staffId = req.user!.userId;
+      
+      const [tasks, todayAttendance, leaveRequests, broadcasts, user] = await Promise.all([
+        storage.getTasksByStaff(staffId),
+        storage.getTodayAttendance(staffId),
+        storage.getLeaveRequestsByStaffId(staffId),
+        storage.getBroadcastNotifications(staffId),
+        storage.getUser(staffId),
+      ]);
+
+      res.json({
+        tasks,
+        attendance: todayAttendance,
+        leaveRequests: leaveRequests.slice(0, 5), // Recent 5 leave requests
+        broadcasts: broadcasts.slice(0, 5), // Recent 5 broadcasts
+        leaveQuota: user ? {
+          total: user.leaveDaysQuota,
+          used: user.leaveDaysUsed,
+          remaining: user.leaveDaysQuota - user.leaveDaysUsed,
+        } : null,
+      });
     } catch (error) {
       console.error(error);
       res.status(500).json({ message: "Internal server error" });

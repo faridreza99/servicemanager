@@ -7,7 +7,36 @@ import { z } from "zod";
 export const userRoleEnum = pgEnum("user_role", ["customer", "admin", "staff"]);
 export const bookingStatusEnum = pgEnum("booking_status", ["pending", "confirmed", "in_progress", "completed", "cancelled"]);
 export const taskStatusEnum = pgEnum("task_status", ["pending", "in_progress", "completed"]);
-export const notificationTypeEnum = pgEnum("notification_type", ["booking", "message", "task", "approval"]);
+export const notificationTypeEnum = pgEnum("notification_type", ["booking", "message", "task", "approval", "broadcast"]);
+
+// Audit log action types
+export const auditActionEnum = pgEnum("audit_action", [
+  "login",
+  "logout",
+  "user_register",
+  "user_approve",
+  "user_reject",
+  "user_update",
+  "user_delete",
+  "booking_create",
+  "booking_update",
+  "booking_assign",
+  "booking_delete",
+  "task_create",
+  "task_update",
+  "task_complete",
+  "leave_request",
+  "leave_approve",
+  "leave_reject",
+  "attendance_clock_in",
+  "attendance_clock_out",
+  "service_create",
+  "service_update",
+  "service_delete",
+  "notification_broadcast",
+  "settings_update",
+  "file_upload"
+]);
 
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -253,7 +282,7 @@ export type InsertNotification = z.infer<typeof insertNotificationSchema>;
 export type UserRole = "customer" | "admin" | "staff";
 export type BookingStatus = "pending" | "confirmed" | "in_progress" | "completed" | "cancelled";
 export type TaskStatus = "pending" | "in_progress" | "completed";
-export type NotificationType = "booking" | "message" | "task" | "approval";
+export type NotificationType = "booking" | "message" | "task" | "approval" | "broadcast";
 export type ServiceCategory = "hardware" | "software" | "network" | "security" | "cloud" | "consulting" | "maintenance" | "other";
 
 export const SERVICE_CATEGORIES: { value: ServiceCategory; label: string }[] = [
@@ -542,3 +571,64 @@ export const LEAVE_TYPES: { value: LeaveType; label: string }[] = [
   { value: "personal", label: "Personal Leave" },
   { value: "unpaid", label: "Unpaid Leave" },
 ];
+
+// Audit logs table for tracking all user actions
+export const auditLogs = pgTable("audit_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  action: auditActionEnum("action").notNull(),
+  actorId: varchar("actor_id").references(() => users.id),
+  actorEmail: text("actor_email"),
+  actorRole: userRoleEnum("actor_role"),
+  targetId: varchar("target_id"),
+  targetType: text("target_type"),
+  metadata: text("metadata"),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
+  actor: one(users, {
+    fields: [auditLogs.actorId],
+    references: [users.id],
+  }),
+}));
+
+export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type AuditLog = typeof auditLogs.$inferSelect;
+export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
+
+export type AuditAction = 
+  | "login"
+  | "logout"
+  | "user_register"
+  | "user_approve"
+  | "user_reject"
+  | "user_update"
+  | "user_delete"
+  | "booking_create"
+  | "booking_update"
+  | "booking_assign"
+  | "booking_delete"
+  | "task_create"
+  | "task_update"
+  | "task_complete"
+  | "leave_request"
+  | "leave_approve"
+  | "leave_reject"
+  | "attendance_clock_in"
+  | "attendance_clock_out"
+  | "service_create"
+  | "service_update"
+  | "service_delete"
+  | "notification_broadcast"
+  | "settings_update"
+  | "file_upload";
+
+export type AuditLogWithActor = AuditLog & {
+  actor?: User;
+};
