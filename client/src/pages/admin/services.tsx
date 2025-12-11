@@ -70,9 +70,11 @@ export default function AdminServicesPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/services"] });
       queryClient.invalidateQueries({ queryKey: ["/api/services"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/public/services/featured"] });
       toast({ title: "Service created", description: "The service is now available for booking." });
       setDialogOpen(false);
       form.reset();
+      setImagePreview(null);
     },
     onError: (error: Error) => toast({ title: "Failed to create service", description: error.message, variant: "destructive" }),
   });
@@ -82,9 +84,11 @@ export default function AdminServicesPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/services"] });
       queryClient.invalidateQueries({ queryKey: ["/api/services"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/public/services/featured"] });
       toast({ title: "Service updated" });
       setDialogOpen(false);
       setEditingService(null);
+      setImagePreview(null);
       form.reset();
     },
     onError: (error: Error) => toast({ title: "Failed to update service", description: error.message, variant: "destructive" }),

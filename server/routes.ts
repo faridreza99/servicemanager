@@ -1037,6 +1037,61 @@ export async function registerRoutes(
     }
   });
 
+  // Admin broadcast notifications with attachments
+  app.post("/api/admin/notifications/broadcast", authMiddleware, requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+    try {
+      const { title, content, attachments, targetRole } = req.body;
+      
+      if (!title || !content) {
+        return res.status(400).json({ message: "Title and content are required" });
+      }
+
+      // Validate attachments is an array of strings (URLs)
+      const validatedAttachments: string[] = [];
+      if (attachments) {
+        if (!Array.isArray(attachments)) {
+          return res.status(400).json({ message: "Attachments must be an array" });
+        }
+        for (const attachment of attachments) {
+          if (typeof attachment !== "string") {
+            return res.status(400).json({ message: "Each attachment must be a valid URL string" });
+          }
+          validatedAttachments.push(attachment);
+        }
+      }
+
+      // Get target users based on role filter (default to all customers)
+      const users = await storage.getUsers();
+      const targetUsers = users.filter(u => {
+        if (targetRole === "all") return u.role !== "admin";
+        if (targetRole === "staff") return u.role === "staff";
+        return u.role === "customer"; // default to customers
+      });
+
+      // Create notifications for all target users
+      const notifications = await Promise.all(
+        targetUsers.map(user => 
+          storage.createNotification({
+            userId: user.id,
+            type: "message",
+            title,
+            content,
+            attachments: validatedAttachments,
+          })
+        )
+      );
+
+      res.json({ 
+        success: true, 
+        message: `Notification sent to ${notifications.length} users`,
+        count: notifications.length 
+      });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   app.get("/api/admin/email-status", authMiddleware, requireRole("admin"), async (req: AuthenticatedRequest, res) => {
     try {
       res.json({

@@ -154,6 +154,7 @@ export const notifications = pgTable("notifications", {
   title: text("title").notNull(),
   content: text("content").notNull(),
   read: boolean("read").notNull().default(false),
+  attachments: text("attachments").array().default([]),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -223,10 +224,15 @@ export const insertTaskSchema = createInsertSchema(tasks).omit({
   status: true,
 });
 
-export const insertNotificationSchema = createInsertSchema(notifications).omit({
+const baseNotificationSchema = createInsertSchema(notifications).omit({
   id: true,
   createdAt: true,
   read: true,
+  attachments: true,
+});
+
+export const insertNotificationSchema = baseNotificationSchema.extend({
+  attachments: z.array(z.string()).optional(),
 });
 
 export type User = typeof users.$inferSelect;

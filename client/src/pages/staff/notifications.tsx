@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState } from "react";
-import { Bell, Check, CheckCheck, Filter } from "lucide-react";
+import { Bell, Check, CheckCheck, Filter, Paperclip } from "lucide-react";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -174,6 +174,23 @@ export default function StaffNotificationsPage() {
                       <p className="text-sm text-muted-foreground mt-1">
                         {notification.content}
                       </p>
+                      {notification.attachments && notification.attachments.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {notification.attachments.map((url, idx) => (
+                            <a
+                              key={idx}
+                              href={url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1 text-xs text-primary hover:underline"
+                              data-testid={`link-attachment-${notification.id}-${idx}`}
+                            >
+                              <Paperclip className="h-3 w-3" />
+                              Attachment {idx + 1}
+                            </a>
+                          ))}
+                        </div>
+                      )}
                       <p className="text-xs text-muted-foreground mt-2">
                         {formatDistanceToNow(new Date(notification.createdAt), {
                           addSuffix: true,
