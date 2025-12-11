@@ -48,6 +48,27 @@ export function UserMenu() {
     setLocation("/login");
   };
 
+  const getSettingsPath = () => {
+    switch (user.role) {
+      case "admin":
+        return "/admin/settings";
+      case "staff":
+        return "/staff/settings";
+      case "customer":
+        return "/customer/settings";
+      default:
+        return "/settings";
+    }
+  };
+
+  const handleProfile = () => {
+    setLocation(getSettingsPath());
+  };
+
+  const handleSettings = () => {
+    setLocation(getSettingsPath());
+  };
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -81,11 +102,11 @@ export function UserMenu() {
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem data-testid="menu-item-profile">
+        <DropdownMenuItem onClick={handleProfile} data-testid="menu-item-profile">
           <User className="mr-2 h-4 w-4" />
           Profile
         </DropdownMenuItem>
-        <DropdownMenuItem data-testid="menu-item-settings">
+        <DropdownMenuItem onClick={handleSettings} data-testid="menu-item-settings">
           <Settings className="mr-2 h-4 w-4" />
           Settings
         </DropdownMenuItem>

@@ -46,6 +46,7 @@ export const services = pgTable("services", {
   name: text("name").notNull(),
   description: text("description").notNull(),
   category: serviceCategoryEnum("category").notNull().default("other"),
+  imageUrl: text("image_url"),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),

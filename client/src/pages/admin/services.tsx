@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Search, Briefcase, Loader2 } from "lucide-react";
+import { Plus, Search, Briefcase, Loader2, Upload, X, Image as ImageIcon } from "lucide-react";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { ServiceCard } from "@/components/service-card";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,7 @@ const serviceSchema = z.object({
   description: z.string().min(10, "Description must be at least 10 characters"),
   category: z.enum(["hardware", "software", "network", "security", "cloud", "consulting", "maintenance", "other"] as const),
   customCategory: z.string().optional(),
+  imageUrl: z.string().optional(),
 }).refine((data) => {
   if (data.category === "other") {
     return data.customCategory && data.customCategory.trim().length >= 2;
@@ -44,10 +45,13 @@ export default function AdminServicesPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [editingService, setEditingService] = useState<Service | null>(null);
   const [deletingService, setDeletingService] = useState<Service | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const form = useForm<ServiceForm>({
     resolver: zodResolver(serviceSchema),
-    defaultValues: { name: "", description: "", category: "other", customCategory: "" },
+    defaultValues: { name: "", description: "", category: "other", customCategory: "", imageUrl: "" },
   });
 
   const selectedCategory = form.watch("category");
@@ -108,18 +112,65 @@ export default function AdminServicesPage() {
     onError: (error: Error) => toast({ title: "Failed to delete service", description: error.message, variant: "destructive" }),
   });
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "Invalid file type", description: "Please upload an image file", variant: "destructive" });
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      
+      const authHeaders = getAuthHeader();
+      const token = localStorage.getItem("token");
+      
+      const res = await fetch("/api/upload/cloudinary", {
+        method: "POST",
+        headers: token ? { "Authorization": `Bearer ${token}` } : {},
+        body: formData,
+      });
+
+      if (!res.ok) throw new Error("Upload failed");
+
+      const data = await res.json();
+      form.setValue("imageUrl", data.url);
+      setImagePreview(data.url);
+      toast({ title: "Image uploaded successfully" });
+    } catch {
+      toast({ title: "Failed to upload image", variant: "destructive" });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleRemoveImage = () => {
+    form.setValue("imageUrl", "");
+    setImagePreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
   const handleEdit = (service: Service) => {
     setEditingService(service);
     form.setValue("name", service.name);
     form.setValue("description", service.description);
     form.setValue("category", service.category as ServiceCategory);
     form.setValue("customCategory", "");
+    form.setValue("imageUrl", service.imageUrl || "");
+    setImagePreview(service.imageUrl || null);
     setDialogOpen(true);
   };
 
   const handleCreate = () => {
     setEditingService(null);
     form.reset();
+    setImagePreview(null);
     setDialogOpen(true);
   };
 
@@ -294,6 +345,76 @@ export default function AdminServicesPage() {
                     </FormItem>
                   )}
                 />
+                <FormItem>
+                  <FormLabel>Service Image</FormLabel>
+                  <div className="space-y-3">
+                    {imagePreview ? (
+                      <div className="relative inline-block">
+                        <img
+                          src={imagePreview}
+                          alt="Service preview"
+                          className="h-32 w-48 object-cover rounded-md border"
+                        />
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="icon"
+                          className="absolute -top-2 -right-2 h-6 w-6"
+                          onClick={handleRemoveImage}
+                          data-testid="button-remove-image"
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <div
+                        className="flex items-center justify-center h-32 w-48 border-2 border-dashed rounded-md cursor-pointer hover:border-primary/50 transition-colors"
+                        onClick={() => fileInputRef.current?.click()}
+                      >
+                        <div className="text-center text-muted-foreground">
+                          {isUploading ? (
+                            <Loader2 className="h-8 w-8 mx-auto animate-spin" />
+                          ) : (
+                            <>
+                              <ImageIcon className="h-8 w-8 mx-auto mb-2" />
+                              <span className="text-sm">Click to upload</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleImageUpload}
+                      data-testid="input-service-image"
+                    />
+                    {!imagePreview && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isUploading}
+                        data-testid="button-upload-image"
+                      >
+                        {isUploading ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Uploading...
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="mr-2 h-4 w-4" />
+                            Upload Image
+                          </>
+                        )}
+                      </Button>
+                    )}
+                  </div>
+                </FormItem>
                 <DialogFooter>
                   <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
                     Cancel

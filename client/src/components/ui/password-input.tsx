@@ -1,49 +1,45 @@
+// @/components/ui/password-input.tsx
+"use client";
+
 import * as React from "react";
 import { Eye, EyeOff } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 
-export interface PasswordInputProps extends React.ComponentProps<typeof Input> {
-  toggleTestId?: string;
-}
+type PasswordInputProps = React.ComponentProps<"input">;
 
-const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(
-  ({ className, toggleTestId = "button-toggle-password", disabled, ...props }, ref) => {
-    const [showPassword, setShowPassword] = React.useState(false);
+export const PasswordInput = React.forwardRef<
+  HTMLInputElement,
+  PasswordInputProps
+>(({ className, ...props }, ref) => {
+  const [show, setShow] = React.useState(false);
 
-    return (
-      <div className="relative">
-        <Input
-          type={showPassword ? "text" : "password"}
-          className={cn("pr-10", className)}
-          ref={ref}
-          disabled={disabled}
-          {...props}
-        />
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className={cn(
-            "absolute right-0 top-0 h-9 w-9",
-            disabled && "pointer-events-none opacity-50"
-          )}
-          onClick={() => setShowPassword(!showPassword)}
-          tabIndex={-1}
-          aria-label={showPassword ? "Hide password" : "Show password"}
-          data-testid={toggleTestId}
-        >
-          {showPassword ? (
-            <EyeOff className="h-4 w-4 text-muted-foreground" />
-          ) : (
-            <Eye className="h-4 w-4 text-muted-foreground" />
-          )}
-        </Button>
-      </div>
-    );
-  }
-);
+  return (
+    <div className="relative">
+      <Input
+        ref={ref}
+        type={show ? "text" : "password"}
+        className={cn("pr-10", className)} // extra right padding for the eye button
+        {...props}
+      />
+
+      <button
+        type="button"
+        onClick={() => setShow((prev) => !prev)}
+        className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground hover:text-foreground"
+        tabIndex={-1}
+      >
+        {show ? (
+          <EyeOff className="h-4 w-4" aria-hidden="true" />
+        ) : (
+          <Eye className="h-4 w-4" aria-hidden="true" />
+        )}
+        <span className="sr-only">
+          {show ? "Hide password" : "Show password"}
+        </span>
+      </button>
+    </div>
+  );
+});
+
 PasswordInput.displayName = "PasswordInput";
-
-export { PasswordInput };

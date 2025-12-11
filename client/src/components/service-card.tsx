@@ -27,12 +27,23 @@ export function ServiceCard({
 
   return (
     <Card className="flex flex-col h-full transition-shadow hover:shadow-md">
+      {service.imageUrl && (
+        <div className="relative h-40 w-full overflow-hidden rounded-t-lg">
+          <img
+            src={service.imageUrl}
+            alt={service.name}
+            className="h-full w-full object-cover"
+          />
+        </div>
+      )}
       <CardHeader className="flex-1">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0">
-              <Briefcase className="h-5 w-5 text-primary" />
-            </div>
+            {!service.imageUrl && (
+              <div className="w-10 h-10 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0">
+                <Briefcase className="h-5 w-5 text-primary" />
+              </div>
+            )}
             <div>
               <CardTitle className="text-lg">{service.name}</CardTitle>
               <div className="flex flex-wrap gap-1 mt-1">
