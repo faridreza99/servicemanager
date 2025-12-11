@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { ClipboardList, CheckCircle, Clock, MapPin, Calendar, LogIn, LogOut, Loader2, AlertTriangle } from "lucide-react";
+import { ClipboardList, CheckCircle, Clock, MapPin, Calendar, LogIn, LogOut, Loader2, AlertTriangle, Bell, Megaphone, FileText, Video, Image as ImageIcon, X } from "lucide-react";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { StatCard } from "@/components/stat-card";
 import { TaskCard } from "@/components/task-card";
@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { getAuthHeader } from "@/lib/auth";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -21,8 +22,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { format } from "date-fns";
-import type { TaskWithDetails, Attendance, LeaveRequestWithDetails } from "@shared/schema";
-import { useState } from "react";
+import type { TaskWithDetails, Attendance, LeaveRequestWithDetails, Notification } from "@shared/schema";
+import { useState, useEffect } from "react";
 
 interface LeaveQuota {
   leaveDaysQuota: number;
@@ -44,6 +45,8 @@ export default function StaffDashboard() {
   const { toast } = useToast();
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
   const [locationStatus, setLocationStatus] = useState<string>("");
+  const [broadcastPopupOpen, setBroadcastPopupOpen] = useState(false);
+  const [selectedBroadcast, setSelectedBroadcast] = useState<Notification | null>(null);
 
   const { data: tasks = [], isLoading: tasksLoading } = useQuery<TaskWithDetails[]>({
     queryKey: ["/api/tasks"],
@@ -81,6 +84,56 @@ export default function StaffDashboard() {
       return res.json();
     },
   });
+
+  const { data: broadcasts = [], isLoading: broadcastsLoading } = useQuery<Notification[]>({
+    queryKey: ["/api/notifications/broadcasts"],
+    queryFn: async () => {
+      const res = await fetch("/api/notifications/broadcasts", { headers: getAuthHeader() });
+      if (!res.ok) throw new Error("Failed to fetch broadcasts");
+      return res.json();
+    },
+  });
+
+  const { data: unreadBroadcasts = [] } = useQuery<Notification[]>({
+    queryKey: ["/api/notifications/unread-broadcasts"],
+    queryFn: async () => {
+      const res = await fetch("/api/notifications/unread-broadcasts", { headers: getAuthHeader() });
+      if (!res.ok) throw new Error("Failed to fetch unread broadcasts");
+      return res.json();
+    },
+  });
+
+  useEffect(() => {
+    if (unreadBroadcasts.length > 0 && !broadcastPopupOpen) {
+      setSelectedBroadcast(unreadBroadcasts[0]);
+      setBroadcastPopupOpen(true);
+    }
+  }, [unreadBroadcasts]);
+
+  const markBroadcastReadMutation = useMutation({
+    mutationFn: async (notificationId: string) => {
+      return apiRequest("PATCH", `/api/notifications/${notificationId}/read`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/notifications/unread-broadcasts"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/notifications/broadcasts"] });
+    },
+  });
+
+  const handleCloseBroadcastPopup = () => {
+    if (selectedBroadcast) {
+      markBroadcastReadMutation.mutate(selectedBroadcast.id);
+    }
+    setBroadcastPopupOpen(false);
+    setSelectedBroadcast(null);
+  };
+
+  const getAttachmentIcon = (url: string) => {
+    const ext = url.split('.').pop()?.toLowerCase();
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext || '')) return <ImageIcon className="h-4 w-4" />;
+    if (['mp4', 'webm', 'mov'].includes(ext || '')) return <Video className="h-4 w-4" />;
+    return <FileText className="h-4 w-4" />;
+  };
 
   const updateTaskMutation = useMutation({
     mutationFn: async ({ taskId, status }: { taskId: string; status: string }) => apiRequest("PATCH", `/api/tasks/${taskId}`, { status }),
@@ -478,32 +531,158 @@ export default function StaffDashboard() {
           </Card>
         </div>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-4 flex-wrap">
-            <div><CardTitle>My Tasks</CardTitle><CardDescription>Tasks assigned to you</CardDescription></div>
-            <Button variant="outline" onClick={() => setLocation("/staff/tasks")} data-testid="button-view-all-tasks">View All</Button>
-          </CardHeader>
-          <CardContent>
-            {tasksLoading ? (
-              <div className="space-y-4">{[1, 2, 3].map((i) => (<Card key={i}><CardContent className="p-6 space-y-4"><Skeleton className="h-6 w-1/2" /><Skeleton className="h-4 w-1/4" /></CardContent></Card>))}</div>
-            ) : activeTasks.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground"><ClipboardList className="h-12 w-12 mx-auto mb-4 opacity-50" /><p className="text-lg font-medium">No active tasks</p><p className="text-sm">You're all caught up!</p></div>
-            ) : (
-              <div className="space-y-4">
-                {activeTasks.slice(0, 5).map((task) => (
-                  <TaskCard 
-                    key={task.id} 
-                    task={task} 
-                    onStart={() => updateTaskMutation.mutate({ taskId: task.id, status: "in_progress" })}
-                    onComplete={() => updateTaskMutation.mutate({ taskId: task.id, status: "completed" })}
-                    onViewBooking={() => setLocation(`/staff/chat/${task.booking.chat?.id}`)}
-                  />
-                ))}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between gap-4 flex-wrap">
+              <div><CardTitle className="flex items-center gap-2"><ClipboardList className="h-5 w-5" />My Tasks</CardTitle><CardDescription>Tasks assigned to you</CardDescription></div>
+              <Button variant="outline" onClick={() => setLocation("/staff/tasks")} data-testid="button-view-all-tasks">View All</Button>
+            </CardHeader>
+            <CardContent>
+              {tasksLoading ? (
+                <div className="space-y-4">{[1, 2, 3].map((i) => (<Card key={i}><CardContent className="p-6 space-y-4"><Skeleton className="h-6 w-1/2" /><Skeleton className="h-4 w-1/4" /></CardContent></Card>))}</div>
+              ) : activeTasks.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground"><ClipboardList className="h-12 w-12 mx-auto mb-4 opacity-50" /><p className="text-lg font-medium">No active tasks</p><p className="text-sm">You're all caught up!</p></div>
+              ) : (
+                <div className="space-y-4">
+                  {activeTasks.slice(0, 5).map((task) => (
+                    <TaskCard 
+                      key={task.id} 
+                      task={task} 
+                      onStart={() => updateTaskMutation.mutate({ taskId: task.id, status: "in_progress" })}
+                      onComplete={() => updateTaskMutation.mutate({ taskId: task.id, status: "completed" })}
+                      onViewBooking={() => setLocation(`/staff/chat/${task.booking.chat?.id}`)}
+                    />
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between gap-4 flex-wrap">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Megaphone className="h-5 w-5" />
+                  Announcements
+                </CardTitle>
+                <CardDescription>Broadcast notifications from admin</CardDescription>
               </div>
-            )}
-          </CardContent>
-        </Card>
+              <Button variant="outline" onClick={() => setLocation("/staff/notifications")} data-testid="button-view-all-broadcasts">View All</Button>
+            </CardHeader>
+            <CardContent>
+              {broadcastsLoading ? (
+                <div className="space-y-2">
+                  {[1, 2, 3].map((i) => (<Skeleton key={i} className="h-16 w-full" />))}
+                </div>
+              ) : broadcasts.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  <Megaphone className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p className="text-lg font-medium">No announcements</p>
+                  <p className="text-sm">Check back later for updates</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {broadcasts.slice(0, 4).map((broadcast) => (
+                    <div 
+                      key={broadcast.id} 
+                      className="p-3 rounded-md bg-muted/50 space-y-2 hover-elevate cursor-pointer"
+                      onClick={() => {
+                        setSelectedBroadcast(broadcast);
+                        setBroadcastPopupOpen(true);
+                      }}
+                      data-testid={`broadcast-item-${broadcast.id}`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{broadcast.title}</p>
+                          <p className="text-xs text-muted-foreground line-clamp-2">{broadcast.content}</p>
+                        </div>
+                        {!broadcast.read && (
+                          <Badge variant="default" className="shrink-0">New</Badge>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <span>{format(new Date(broadcast.createdAt), "MMM d, yyyy")}</span>
+                        {broadcast.attachments && broadcast.attachments.length > 0 && (
+                          <span className="flex items-center gap-1">
+                            <FileText className="h-3 w-3" />
+                            {broadcast.attachments.length} attachment{broadcast.attachments.length > 1 ? 's' : ''}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
+
+      <Dialog open={broadcastPopupOpen} onOpenChange={(open) => {
+        if (!open) handleCloseBroadcastPopup();
+      }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Megaphone className="h-5 w-5" />
+              {selectedBroadcast?.title || "Announcement"}
+            </DialogTitle>
+            <DialogDescription>
+              {selectedBroadcast && format(new Date(selectedBroadcast.createdAt), "MMMM d, yyyy 'at' h:mm a")}
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedBroadcast && (
+            <div className="space-y-4">
+              <div className="text-sm whitespace-pre-wrap">{selectedBroadcast.content}</div>
+              
+              {selectedBroadcast.attachments && selectedBroadcast.attachments.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Attachments</p>
+                  <div className="grid grid-cols-1 gap-2">
+                    {selectedBroadcast.attachments.map((url, idx) => {
+                      const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(url);
+                      const isVideo = /\.(mp4|webm|mov)$/i.test(url);
+                      
+                      if (isImage) {
+                        return (
+                          <a key={idx} href={url} target="_blank" rel="noopener noreferrer" className="block">
+                            <img src={url} alt={`Attachment ${idx + 1}`} className="rounded-md max-h-48 object-cover" />
+                          </a>
+                        );
+                      }
+                      
+                      if (isVideo) {
+                        return (
+                          <video key={idx} src={url} controls className="rounded-md max-h-48 w-full" />
+                        );
+                      }
+                      
+                      return (
+                        <a 
+                          key={idx} 
+                          href={url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 p-2 rounded-md bg-muted/50 hover-elevate text-sm"
+                        >
+                          {getAttachmentIcon(url)}
+                          <span className="truncate">Attachment {idx + 1}</span>
+                        </a>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              
+              <Button onClick={handleCloseBroadcastPopup} className="w-full" data-testid="button-close-broadcast">
+                Got It
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }

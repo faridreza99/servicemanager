@@ -29,6 +29,7 @@ import AdminChatPage from "@/pages/admin/chat";
 import AdminReviewsPage from "@/pages/admin/reviews";
 import AdminAttendancePage from "@/pages/admin/attendance";
 import AdminLeaveRequestsPage from "@/pages/admin/leave-requests";
+import AdminAuditLogsPage from "@/pages/admin/audit-logs";
 import CustomerSettingsPage from "@/pages/customer/settings";
 import StaffDashboard from "@/pages/staff/dashboard";
 import StaffTasksPage from "@/pages/staff/tasks";
@@ -264,6 +265,12 @@ function Router() {
       <Route path="/admin/leave-requests">
         <ProtectedRoute roles={["admin"]}>
           <AdminLeaveRequestsPage />
+        </ProtectedRoute>
+      </Route>
+
+      <Route path="/admin/audit-logs">
+        <ProtectedRoute roles={["admin"]}>
+          <AdminAuditLogsPage />
         </ProtectedRoute>
       </Route>
 

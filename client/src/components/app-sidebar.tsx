@@ -49,6 +49,7 @@ function getMenuItems(role: UserRole): { main: MenuItem[]; secondary?: MenuItem[
         { title: "Attendance", url: "/admin/attendance", icon: Clock },
         { title: "Leave Requests", url: "/admin/leave-requests", icon: CalendarDays },
         { title: "Reviews", url: "/admin/reviews", icon: Star },
+        { title: "Audit Logs", url: "/admin/audit-logs", icon: Shield },
         { title: "Page Content", url: "/admin/page-content", icon: FileEdit },
       ],
       secondary: [

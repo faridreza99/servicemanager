@@ -1,9 +1,10 @@
 import { useState, useRef } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { User, Lock, Palette, Mail, Phone, Camera, Loader2, CheckCircle, XCircle, Settings } from "lucide-react";
+import { User, Lock, Palette, Mail, Phone, Camera, Loader2, CheckCircle, XCircle, Settings, Megaphone, FileText, Video, Image as ImageIcon } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { format } from "date-fns";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,9 @@ import { PasswordInput } from "@/components/ui/password-input";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Skeleton } from "@/components/ui/skeleton";
+import type { Notification } from "@shared/schema";
 import {
   Form,
   FormControl,
@@ -53,6 +57,24 @@ export default function StaffSettingsPage() {
   const { theme, setTheme } = useTheme();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [selectedBroadcast, setSelectedBroadcast] = useState<Notification | null>(null);
+  const [broadcastDialogOpen, setBroadcastDialogOpen] = useState(false);
+
+  const { data: broadcasts = [], isLoading: broadcastsLoading } = useQuery<Notification[]>({
+    queryKey: ["/api/notifications/broadcasts"],
+    queryFn: async () => {
+      const res = await fetch("/api/notifications/broadcasts", { headers: getAuthHeader() });
+      if (!res.ok) throw new Error("Failed to fetch broadcasts");
+      return res.json();
+    },
+  });
+
+  const getAttachmentIcon = (url: string) => {
+    const ext = url.split('.').pop()?.toLowerCase();
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext || '')) return <ImageIcon className="h-4 w-4" />;
+    if (['mp4', 'webm', 'mov'].includes(ext || '')) return <Video className="h-4 w-4" />;
+    return <FileText className="h-4 w-4" />;
+  };
 
   const { data: systemStatus } = useQuery<SystemStatus>({
     queryKey: ["/api/system/status"],
@@ -464,7 +486,127 @@ export default function StaffSettingsPage() {
             </div>
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Megaphone className="h-5 w-5" />
+              System Announcements
+            </CardTitle>
+            <CardDescription>
+              Broadcast notifications from administrators
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {broadcastsLoading ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => (<Skeleton key={i} className="h-16 w-full" />))}
+              </div>
+            ) : broadcasts.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Megaphone className="h-10 w-10 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">No announcements yet</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {broadcasts.map((broadcast) => (
+                  <div 
+                    key={broadcast.id} 
+                    className="p-3 rounded-md bg-muted/50 space-y-2 hover-elevate cursor-pointer"
+                    onClick={() => {
+                      setSelectedBroadcast(broadcast);
+                      setBroadcastDialogOpen(true);
+                    }}
+                    data-testid={`settings-broadcast-${broadcast.id}`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{broadcast.title}</p>
+                        <p className="text-xs text-muted-foreground line-clamp-2">{broadcast.content}</p>
+                      </div>
+                      {!broadcast.read && (
+                        <Badge variant="default" className="shrink-0">New</Badge>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span>{format(new Date(broadcast.createdAt), "MMM d, yyyy 'at' h:mm a")}</span>
+                      {broadcast.attachments && broadcast.attachments.length > 0 && (
+                        <span className="flex items-center gap-1">
+                          <FileText className="h-3 w-3" />
+                          {broadcast.attachments.length} file{broadcast.attachments.length > 1 ? 's' : ''}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
+
+      <Dialog open={broadcastDialogOpen} onOpenChange={setBroadcastDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Megaphone className="h-5 w-5" />
+              {selectedBroadcast?.title || "Announcement"}
+            </DialogTitle>
+            <DialogDescription>
+              {selectedBroadcast && format(new Date(selectedBroadcast.createdAt), "MMMM d, yyyy 'at' h:mm a")}
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedBroadcast && (
+            <div className="space-y-4">
+              <div className="text-sm whitespace-pre-wrap">{selectedBroadcast.content}</div>
+              
+              {selectedBroadcast.attachments && selectedBroadcast.attachments.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Attachments</p>
+                  <div className="grid grid-cols-1 gap-2">
+                    {selectedBroadcast.attachments.map((url, idx) => {
+                      const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(url);
+                      const isVideo = /\.(mp4|webm|mov)$/i.test(url);
+                      
+                      if (isImage) {
+                        return (
+                          <a key={idx} href={url} target="_blank" rel="noopener noreferrer" className="block">
+                            <img src={url} alt={`Attachment ${idx + 1}`} className="rounded-md max-h-48 object-cover" />
+                          </a>
+                        );
+                      }
+                      
+                      if (isVideo) {
+                        return (
+                          <video key={idx} src={url} controls className="rounded-md max-h-48 w-full" />
+                        );
+                      }
+                      
+                      return (
+                        <a 
+                          key={idx} 
+                          href={url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 p-2 rounded-md bg-muted/50 hover-elevate text-sm"
+                        >
+                          {getAttachmentIcon(url)}
+                          <span className="truncate">Attachment {idx + 1}</span>
+                        </a>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              
+              <Button onClick={() => setBroadcastDialogOpen(false)} className="w-full" data-testid="button-close-settings-broadcast">
+                Close
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }
