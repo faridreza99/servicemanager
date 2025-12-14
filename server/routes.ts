@@ -1703,6 +1703,109 @@ export async function registerRoutes(
     }
   });
 
+  // Admin create attendance record
+  const adminAttendanceSchema = z.object({
+    staffId: z.string(),
+    date: z.string(),
+    clockInTime: z.string().optional(),
+    clockOutTime: z.string().optional(),
+    status: z.enum(["present", "absent", "late", "half_day"]).optional(),
+  });
+
+  app.post("/api/admin/attendance", authMiddleware, requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+    try {
+      const parsed = adminAttendanceSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid attendance data", errors: parsed.error.errors });
+      }
+
+      const { staffId, date, clockInTime, clockOutTime, status } = parsed.data;
+
+      const attendanceData: any = {
+        staffId,
+        date,
+        status: status || "present",
+      };
+
+      if (clockInTime) {
+        attendanceData.clockInTime = new Date(clockInTime);
+      }
+      if (clockOutTime) {
+        attendanceData.clockOutTime = new Date(clockOutTime);
+      }
+
+      const attendance = await storage.createAttendance(attendanceData);
+
+      await storage.createAuditLog({
+        action: "attendance_clock_in",
+        actorId: req.user!.userId,
+        actorEmail: req.user!.email,
+        actorRole: "admin",
+        targetId: attendance.id,
+        targetType: "attendance",
+        metadata: JSON.stringify({ staffId, date, createdByAdmin: true }),
+      });
+
+      res.status(201).json(attendance);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Admin update attendance record
+  const adminAttendanceUpdateSchema = z.object({
+    clockInTime: z.string().optional().nullable(),
+    clockOutTime: z.string().optional().nullable(),
+    status: z.enum(["present", "absent", "late", "half_day"]).optional(),
+  }).refine(
+    (data) => data.clockInTime !== undefined || data.clockOutTime !== undefined || data.status !== undefined,
+    { message: "At least one field (clockInTime, clockOutTime, or status) must be provided" }
+  );
+
+  app.put("/api/admin/attendance/:id", authMiddleware, requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+    try {
+      const { id } = req.params;
+      const parsed = adminAttendanceUpdateSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid attendance data", errors: parsed.error.errors });
+      }
+
+      const updates: any = {};
+      const { clockInTime, clockOutTime, status } = parsed.data;
+
+      if (clockInTime !== undefined) {
+        updates.clockInTime = clockInTime ? new Date(clockInTime) : null;
+      }
+      if (clockOutTime !== undefined) {
+        updates.clockOutTime = clockOutTime ? new Date(clockOutTime) : null;
+      }
+      if (status !== undefined) {
+        updates.status = status;
+      }
+
+      const updated = await storage.updateAttendance(id, updates);
+      if (!updated) {
+        return res.status(404).json({ message: "Attendance record not found" });
+      }
+
+      await storage.createAuditLog({
+        action: "attendance_clock_out",
+        actorId: req.user!.userId,
+        actorEmail: req.user!.email,
+        actorRole: "admin",
+        targetId: id,
+        targetType: "attendance",
+        metadata: JSON.stringify({ updates, editedByAdmin: true }),
+      });
+
+      res.json(updated);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   // =====================
   // LEAVE REQUEST ROUTES
   // =====================

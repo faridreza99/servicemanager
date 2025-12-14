@@ -1,20 +1,37 @@
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getAuthHeader } from "@/lib/auth";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
-import { MapPin, Clock, Users } from "lucide-react";
-import type { AttendanceWithStaff } from "@shared/schema";
-import { useState } from "react";
+import { MapPin, Clock, Users, Plus, Pencil } from "lucide-react";
+import type { AttendanceWithStaff, User } from "@shared/schema";
 
 export default function AdminAttendance() {
+  const { toast } = useToast();
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [selectedRecord, setSelectedRecord] = useState<AttendanceWithStaff | null>(null);
+
+  const [formData, setFormData] = useState({
+    staffId: "",
+    date: new Date().toISOString().split("T")[0],
+    clockInTime: "",
+    clockOutTime: "",
+    status: "present" as "present" | "absent" | "late" | "half_day",
+  });
 
   const queryParams = new URLSearchParams();
   if (startDate) queryParams.set("startDate", startDate);
@@ -29,6 +46,93 @@ export default function AdminAttendance() {
       return res.json();
     },
   });
+
+  const { data: staffUsers = [] } = useQuery<User[]>({
+    queryKey: ["/api/admin/users"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/users", { headers: getAuthHeader() });
+      if (!res.ok) throw new Error("Failed to fetch users");
+      const users = await res.json();
+      return users.filter((u: User) => u.role === "staff" && u.approved);
+    },
+  });
+
+  const invalidateAttendanceQueries = () => {
+    queryClient.invalidateQueries({ queryKey: ["/api/admin/attendance"], exact: false });
+  };
+
+  const createMutation = useMutation({
+    mutationFn: async (data: typeof formData) => {
+      return apiRequest("POST", "/api/admin/attendance", data);
+    },
+    onSuccess: () => {
+      invalidateAttendanceQueries();
+      toast({ title: "Attendance record created successfully" });
+      setIsAddDialogOpen(false);
+      resetForm();
+    },
+    onError: () => {
+      toast({ title: "Failed to create attendance record", variant: "destructive" });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Partial<typeof formData> }) => {
+      return apiRequest("PUT", `/api/admin/attendance/${id}`, data);
+    },
+    onSuccess: () => {
+      invalidateAttendanceQueries();
+      toast({ title: "Attendance record updated successfully" });
+      setIsEditDialogOpen(false);
+      setSelectedRecord(null);
+      resetForm();
+    },
+    onError: () => {
+      toast({ title: "Failed to update attendance record", variant: "destructive" });
+    },
+  });
+
+  const resetForm = () => {
+    setFormData({
+      staffId: "",
+      date: new Date().toISOString().split("T")[0],
+      clockInTime: "",
+      clockOutTime: "",
+      status: "present",
+    });
+  };
+
+  const openEditDialog = (record: AttendanceWithStaff) => {
+    setSelectedRecord(record);
+    setFormData({
+      staffId: record.staffId,
+      date: record.date,
+      clockInTime: record.clockInTime ? format(new Date(record.clockInTime), "yyyy-MM-dd'T'HH:mm") : "",
+      clockOutTime: record.clockOutTime ? format(new Date(record.clockOutTime), "yyyy-MM-dd'T'HH:mm") : "",
+      status: record.status as "present" | "absent" | "late" | "half_day",
+    });
+    setIsEditDialogOpen(true);
+  };
+
+  const handleSubmitAdd = () => {
+    if (!formData.staffId || !formData.date) {
+      toast({ title: "Please select a staff member and date", variant: "destructive" });
+      return;
+    }
+    createMutation.mutate(formData);
+  };
+
+  const handleSubmitEdit = () => {
+    if (!selectedRecord) return;
+    updateMutation.mutate({
+      id: selectedRecord.id,
+      data: {
+        clockInTime: formData.clockInTime || undefined,
+        clockOutTime: formData.clockOutTime || undefined,
+        status: formData.status,
+      },
+    });
+  };
 
   const formatTime = (time: string | Date | null) => {
     if (!time) return "-";
@@ -91,8 +195,16 @@ export default function AdminAttendance() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Attendance Records</CardTitle>
-            <CardDescription>View and filter staff attendance with location data</CardDescription>
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div>
+                <CardTitle>Attendance Records</CardTitle>
+                <CardDescription>View, add, and edit staff attendance</CardDescription>
+              </div>
+              <Button onClick={() => { resetForm(); setIsAddDialogOpen(true); }} data-testid="button-add-attendance">
+                <Plus className="h-4 w-4 mr-2" />
+                Add Attendance
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex flex-wrap gap-4">
@@ -143,6 +255,7 @@ export default function AdminAttendance() {
                       <TableHead>Status</TableHead>
                       <TableHead>Clock In Location</TableHead>
                       <TableHead>Clock Out Location</TableHead>
+                      <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -190,6 +303,16 @@ export default function AdminAttendance() {
                             <span className="text-muted-foreground">-</span>
                           )}
                         </TableCell>
+                        <TableCell>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => openEditDialog(record)}
+                            data-testid={`button-edit-attendance-${record.id}`}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -199,6 +322,134 @@ export default function AdminAttendance() {
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Attendance Record</DialogTitle>
+            <DialogDescription>Create a new attendance record for a staff member</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Staff Member</Label>
+              <Select value={formData.staffId} onValueChange={(v) => setFormData({ ...formData, staffId: v })}>
+                <SelectTrigger data-testid="select-staff">
+                  <SelectValue placeholder="Select staff member" />
+                </SelectTrigger>
+                <SelectContent>
+                  {staffUsers.map((user) => (
+                    <SelectItem key={user.id} value={user.id} data-testid={`option-staff-${user.id}`}>
+                      {user.name} ({user.email})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Date</Label>
+              <Input
+                type="date"
+                value={formData.date}
+                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                data-testid="input-attendance-date"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Clock In Time</Label>
+              <Input
+                type="datetime-local"
+                value={formData.clockInTime}
+                onChange={(e) => setFormData({ ...formData, clockInTime: e.target.value })}
+                data-testid="input-clock-in-time"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Clock Out Time</Label>
+              <Input
+                type="datetime-local"
+                value={formData.clockOutTime}
+                onChange={(e) => setFormData({ ...formData, clockOutTime: e.target.value })}
+                data-testid="input-clock-out-time"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Status</Label>
+              <Select value={formData.status} onValueChange={(v) => setFormData({ ...formData, status: v as typeof formData.status })}>
+                <SelectTrigger data-testid="select-status">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="present" data-testid="option-status-present">Present</SelectItem>
+                  <SelectItem value="absent" data-testid="option-status-absent">Absent</SelectItem>
+                  <SelectItem value="late" data-testid="option-status-late">Late</SelectItem>
+                  <SelectItem value="half_day" data-testid="option-status-half-day">Half Day</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAddDialogOpen(false)} data-testid="button-cancel-add">
+              Cancel
+            </Button>
+            <Button onClick={handleSubmitAdd} disabled={createMutation.isPending} data-testid="button-submit-add">
+              {createMutation.isPending ? "Creating..." : "Create Record"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Attendance Record</DialogTitle>
+            <DialogDescription>
+              Update attendance for {selectedRecord?.staff?.name} on {selectedRecord?.date ? format(new Date(selectedRecord.date), "MMM d, yyyy") : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Clock In Time</Label>
+              <Input
+                type="datetime-local"
+                value={formData.clockInTime}
+                onChange={(e) => setFormData({ ...formData, clockInTime: e.target.value })}
+                data-testid="input-edit-clock-in-time"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Clock Out Time</Label>
+              <Input
+                type="datetime-local"
+                value={formData.clockOutTime}
+                onChange={(e) => setFormData({ ...formData, clockOutTime: e.target.value })}
+                data-testid="input-edit-clock-out-time"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Status</Label>
+              <Select value={formData.status} onValueChange={(v) => setFormData({ ...formData, status: v as typeof formData.status })}>
+                <SelectTrigger data-testid="select-edit-status">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="present" data-testid="option-edit-status-present">Present</SelectItem>
+                  <SelectItem value="absent" data-testid="option-edit-status-absent">Absent</SelectItem>
+                  <SelectItem value="late" data-testid="option-edit-status-late">Late</SelectItem>
+                  <SelectItem value="half_day" data-testid="option-edit-status-half-day">Half Day</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} data-testid="button-cancel-edit">
+              Cancel
+            </Button>
+            <Button onClick={handleSubmitEdit} disabled={updateMutation.isPending} data-testid="button-submit-edit">
+              {updateMutation.isPending ? "Updating..." : "Update Record"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }
