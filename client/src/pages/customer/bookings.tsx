@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { Calendar, Loader2 } from "lucide-react";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { BookingCard } from "@/components/booking-card";
+import { Pagination, usePagination } from "@/components/pagination";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -26,7 +27,10 @@ export default function CustomerBookingsPage() {
   const activeBookings = bookings.filter((b) => b.status !== "completed" && b.status !== "cancelled");
   const completedBookings = bookings.filter((b) => b.status === "completed" || b.status === "cancelled");
 
-  const renderBookingsList = (list: BookingWithDetails[]) => {
+  const activePagination = usePagination(activeBookings, 10);
+  const completedPagination = usePagination(completedBookings, 10);
+
+  const renderBookingsList = (list: BookingWithDetails[], pagination: ReturnType<typeof usePagination<BookingWithDetails>>) => {
     if (list.length === 0) {
       return (
         <div className="text-center py-16 text-muted-foreground">
@@ -37,15 +41,27 @@ export default function CustomerBookingsPage() {
     }
 
     return (
-      <div className="space-y-4">
-        {list.map((booking) => (
-          <BookingCard
-            key={booking.id}
-            booking={booking}
-            onViewDetails={() => setLocation(`/dashboard/bookings/${booking.id}`)}
+      <>
+        <div className="space-y-4">
+          {pagination.paginatedItems.map((booking) => (
+            <BookingCard
+              key={booking.id}
+              booking={booking}
+              onViewDetails={() => setLocation(`/dashboard/bookings/${booking.id}`)}
+            />
+          ))}
+        </div>
+        {list.length > 10 && (
+          <Pagination
+            currentPage={pagination.currentPage}
+            totalPages={pagination.totalPages}
+            pageSize={pagination.pageSize}
+            totalItems={pagination.totalItems}
+            onPageChange={pagination.onPageChange}
+            onPageSizeChange={pagination.onPageSizeChange}
           />
-        ))}
-      </div>
+        )}
+      </>
     );
   };
 
@@ -76,11 +92,11 @@ export default function CustomerBookingsPage() {
             </TabsList>
 
             <TabsContent value="active">
-              {renderBookingsList(activeBookings)}
+              {renderBookingsList(activeBookings, activePagination)}
             </TabsContent>
 
             <TabsContent value="completed">
-              {renderBookingsList(completedBookings)}
+              {renderBookingsList(completedBookings, completedPagination)}
             </TabsContent>
           </Tabs>
         )}

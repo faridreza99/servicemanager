@@ -4,6 +4,7 @@ import { useLocation } from "wouter";
 import { Search, Calendar, Loader2, User, Download } from "lucide-react";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { BookingCard } from "@/components/booking-card";
+import { Pagination, usePagination } from "@/components/pagination";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -83,11 +84,31 @@ export default function AdminBookingsPage() {
 
   const filterBookings = (list: BookingWithDetails[]) => list.filter((b) => b.service.name.toLowerCase().includes(searchQuery.toLowerCase()) || b.customer.name.toLowerCase().includes(searchQuery.toLowerCase()));
 
-  const renderBookingsList = (list: BookingWithDetails[]) => {
+  const filteredActive = filterBookings(activeBookings);
+  const filteredCompleted = filterBookings(completedBookings);
+
+  const activePagination = usePagination(filteredActive, 10);
+  const completedPagination = usePagination(filteredCompleted, 10);
+
+  const renderBookingsList = (list: BookingWithDetails[], pagination: ReturnType<typeof usePagination<BookingWithDetails>>) => {
     if (list.length === 0) {
       return (<div className="text-center py-16 text-muted-foreground"><Calendar className="h-16 w-16 mx-auto mb-4 opacity-50" /><p className="text-lg font-medium">{searchQuery ? "No bookings found" : "No bookings"}</p></div>);
     }
-    return (<div className="space-y-4">{list.map((booking) => (<BookingCard key={booking.id} booking={booking} showCustomer showAssignee onViewDetails={() => setLocation(`/admin/bookings/${booking.id}`)} onAssign={() => handleAssign(booking)} />))}</div>);
+    return (
+      <>
+        <div className="space-y-4">{pagination.paginatedItems.map((booking) => (<BookingCard key={booking.id} booking={booking} showCustomer showAssignee onViewDetails={() => setLocation(`/admin/bookings/${booking.id}`)} onAssign={() => handleAssign(booking)} />))}</div>
+        {list.length > 10 && (
+          <Pagination
+            currentPage={pagination.currentPage}
+            totalPages={pagination.totalPages}
+            pageSize={pagination.pageSize}
+            totalItems={pagination.totalItems}
+            onPageChange={pagination.onPageChange}
+            onPageSizeChange={pagination.onPageSizeChange}
+          />
+        )}
+      </>
+    );
   };
 
   return (
@@ -108,8 +129,8 @@ export default function AdminBookingsPage() {
         ) : (
           <Tabs defaultValue="active" className="space-y-6">
             <TabsList><TabsTrigger value="active" data-testid="tab-active-bookings">Active ({activeBookings.length})</TabsTrigger><TabsTrigger value="completed" data-testid="tab-completed-bookings">Completed ({completedBookings.length})</TabsTrigger></TabsList>
-            <TabsContent value="active">{renderBookingsList(filterBookings(activeBookings))}</TabsContent>
-            <TabsContent value="completed">{renderBookingsList(filterBookings(completedBookings))}</TabsContent>
+            <TabsContent value="active">{renderBookingsList(filteredActive, activePagination)}</TabsContent>
+            <TabsContent value="completed">{renderBookingsList(filteredCompleted, completedPagination)}</TabsContent>
           </Tabs>
         )}
 

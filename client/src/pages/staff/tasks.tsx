@@ -4,6 +4,7 @@ import { useLocation } from "wouter";
 import { ClipboardList, Search } from "lucide-react";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { TaskCard } from "@/components/task-card";
+import { Pagination, usePagination } from "@/components/pagination";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -48,21 +49,41 @@ export default function StaffTasksPage() {
     return serviceName.includes(query) || taskTitle.includes(query) || description.includes(query);
   });
 
-  const renderTasksList = (list: TaskWithDetails[]) => {
+  const filteredPending = filterTasks(pendingTasks);
+  const filteredInProgress = filterTasks(inProgressTasks);
+  const filteredCompleted = filterTasks(completedTasks);
+
+  const pendingPagination = usePagination(filteredPending, 10);
+  const inProgressPagination = usePagination(filteredInProgress, 10);
+  const completedPagination = usePagination(filteredCompleted, 10);
+
+  const renderTasksList = (list: TaskWithDetails[], pagination: ReturnType<typeof usePagination<TaskWithDetails>>) => {
     if (list.length === 0) {
       return (<div className="text-center py-16 text-muted-foreground"><ClipboardList className="h-16 w-16 mx-auto mb-4 opacity-50" /><p className="text-lg font-medium">{searchQuery ? "No tasks found" : "No tasks"}</p></div>);
     }
     return (
-      <div className="space-y-4">
-        {list.map((task) => (
-          <TaskCard 
-            key={task.id} 
-            task={task}
-            onStart={() => updateTaskMutation.mutate({ taskId: task.id, status: "in_progress" })}
-            onViewBooking={task.bookingId ? () => setLocation(`/staff/bookings/${task.bookingId}`) : undefined}
+      <>
+        <div className="space-y-4">
+          {pagination.paginatedItems.map((task) => (
+            <TaskCard 
+              key={task.id} 
+              task={task}
+              onStart={() => updateTaskMutation.mutate({ taskId: task.id, status: "in_progress" })}
+              onViewBooking={task.bookingId ? () => setLocation(`/staff/bookings/${task.bookingId}`) : undefined}
+            />
+          ))}
+        </div>
+        {list.length > 10 && (
+          <Pagination
+            currentPage={pagination.currentPage}
+            totalPages={pagination.totalPages}
+            pageSize={pagination.pageSize}
+            totalItems={pagination.totalItems}
+            onPageChange={pagination.onPageChange}
+            onPageSizeChange={pagination.onPageSizeChange}
           />
-        ))}
-      </div>
+        )}
+      </>
     );
   };
 
@@ -83,9 +104,9 @@ export default function StaffTasksPage() {
               <TabsTrigger value="in_progress" data-testid="tab-in-progress-tasks">In Progress ({inProgressTasks.length})</TabsTrigger>
               <TabsTrigger value="completed" data-testid="tab-completed-tasks">Completed ({completedTasks.length})</TabsTrigger>
             </TabsList>
-            <TabsContent value="pending">{renderTasksList(filterTasks(pendingTasks))}</TabsContent>
-            <TabsContent value="in_progress">{renderTasksList(filterTasks(inProgressTasks))}</TabsContent>
-            <TabsContent value="completed">{renderTasksList(filterTasks(completedTasks))}</TabsContent>
+            <TabsContent value="pending">{renderTasksList(filteredPending, pendingPagination)}</TabsContent>
+            <TabsContent value="in_progress">{renderTasksList(filteredInProgress, inProgressPagination)}</TabsContent>
+            <TabsContent value="completed">{renderTasksList(filteredCompleted, completedPagination)}</TabsContent>
           </Tabs>
         )}
       </div>

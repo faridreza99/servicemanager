@@ -14,7 +14,10 @@ import { getAuthHeader } from "@/lib/auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
-import { MapPin, Clock, Users, Plus, Pencil } from "lucide-react";
+import { MapPin, Clock, Users, Plus, Pencil, Download, FileText, FileSpreadsheet } from "lucide-react";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
+import * as XLSX from "xlsx";
 import type { AttendanceWithStaff, User } from "@shared/schema";
 
 export default function AdminAttendance() {
@@ -154,6 +157,57 @@ export default function AdminAttendance() {
     return `${hours}h ${minutes}m`;
   };
 
+  const exportToPDF = () => {
+    try {
+      const doc = new jsPDF();
+      doc.setFontSize(18);
+      doc.text("Attendance Report", 14, 22);
+      doc.setFontSize(11);
+      doc.text(`Generated: ${format(new Date(), "MMM d, yyyy")}`, 14, 30);
+      
+      autoTable(doc, {
+        startY: 40,
+        head: [["Staff", "Date", "Clock In", "Clock Out", "Hours", "Status"]],
+        body: records.map(r => [
+          r.staff?.name || "Unknown",
+          format(new Date(r.date), "MMM d, yyyy"),
+          formatTime(r.clockInTime),
+          formatTime(r.clockOutTime),
+          calculateWorkHours(r.clockInTime, r.clockOutTime),
+          r.status
+        ])
+      });
+      
+      doc.save(`attendance-report-${format(new Date(), "yyyy-MM-dd")}.pdf`);
+      toast({ title: "PDF exported successfully" });
+    } catch (error) {
+      toast({ title: "Failed to export PDF", variant: "destructive" });
+    }
+  };
+
+  const exportToExcel = () => {
+    try {
+      const data = records.map(r => ({
+        "Staff Name": r.staff?.name || "Unknown",
+        "Date": format(new Date(r.date), "MMM d, yyyy"),
+        "Clock In": formatTime(r.clockInTime),
+        "Clock Out": formatTime(r.clockOutTime),
+        "Work Hours": calculateWorkHours(r.clockInTime, r.clockOutTime),
+        "Status": r.status,
+        "Clock In Location": formatLocation(r.clockInLatitude, r.clockInLongitude) || "N/A",
+        "Clock Out Location": formatLocation(r.clockOutLatitude, r.clockOutLongitude) || "N/A"
+      }));
+      
+      const ws = XLSX.utils.json_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Attendance");
+      XLSX.writeFile(wb, `attendance-report-${format(new Date(), "yyyy-MM-dd")}.xlsx`);
+      toast({ title: "Excel exported successfully" });
+    } catch (error) {
+      toast({ title: "Failed to export Excel", variant: "destructive" });
+    }
+  };
+
   const todayRecords = records.filter((r) => r.date === new Date().toISOString().split("T")[0]);
   const presentToday = todayRecords.filter((r) => r.clockInTime).length;
 
@@ -200,10 +254,18 @@ export default function AdminAttendance() {
                 <CardTitle>Attendance Records</CardTitle>
                 <CardDescription>View, add, and edit staff attendance</CardDescription>
               </div>
-              <Button onClick={() => { resetForm(); setIsAddDialogOpen(true); }} data-testid="button-add-attendance">
-                <Plus className="h-4 w-4 mr-2" />
-                Add Attendance
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" onClick={exportToPDF} disabled={isLoading || records.length === 0} data-testid="button-export-pdf">
+                  <FileText className="h-4 w-4 mr-2" />PDF
+                </Button>
+                <Button variant="outline" onClick={exportToExcel} disabled={isLoading || records.length === 0} data-testid="button-export-excel">
+                  <FileSpreadsheet className="h-4 w-4 mr-2" />Excel
+                </Button>
+                <Button onClick={() => { resetForm(); setIsAddDialogOpen(true); }} data-testid="button-add-attendance">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Attendance
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">

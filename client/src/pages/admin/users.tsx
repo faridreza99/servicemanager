@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Search, UserCheck, Users, Loader2, Pencil, Trash2 } from "lucide-react";
 import { DashboardLayout } from "@/components/dashboard-layout";
+import { Pagination, usePagination } from "@/components/pagination";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -114,7 +115,10 @@ export default function AdminUsersPage() {
   const filteredPending = pendingUsers.filter((u) => u.name.toLowerCase().includes(searchQuery.toLowerCase()) || u.email.toLowerCase().includes(searchQuery.toLowerCase()));
   const filteredApproved = approvedUsers.filter((u) => u.name.toLowerCase().includes(searchQuery.toLowerCase()) || u.email.toLowerCase().includes(searchQuery.toLowerCase()));
 
-  const renderUserList = (list: User[], showApproveButton: boolean) => {
+  const pendingPagination = usePagination(filteredPending, 10);
+  const approvedPagination = usePagination(filteredApproved, 10);
+
+  const renderUserList = (list: User[], showApproveButton: boolean, pagination: ReturnType<typeof usePagination<User>>) => {
     if (list.length === 0) {
       return (
         <div className="text-center py-16 text-muted-foreground">
@@ -124,45 +128,57 @@ export default function AdminUsersPage() {
       );
     }
     return (
-      <div className="space-y-3">
-        {list.map((user) => (
-          <Card key={user.id} className="hover-elevate">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between gap-4 flex-wrap">
-                <div className="flex items-center gap-3">
-                  <Avatar className="h-10 w-10">
-                    <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <p className="font-medium">{user.name}</p>
-                    <p className="text-sm text-muted-foreground">{user.email}</p>
-                    <p className="text-xs text-muted-foreground">Joined {formatDistanceToNow(new Date(user.createdAt), { addSuffix: true })}</p>
-                    {user.role === "staff" && (
-                      <p className="text-xs text-muted-foreground">Leave: {user.leaveDaysUsed || 0}/{user.leaveDaysQuota || 0} days used</p>
+      <>
+        <div className="space-y-3">
+          {pagination.paginatedItems.map((user) => (
+            <Card key={user.id} className="hover-elevate">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between gap-4 flex-wrap">
+                  <div className="flex items-center gap-3">
+                    <Avatar className="h-10 w-10">
+                      <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <p className="font-medium">{user.name}</p>
+                      <p className="text-sm text-muted-foreground">{user.email}</p>
+                      <p className="text-xs text-muted-foreground">Joined {formatDistanceToNow(new Date(user.createdAt), { addSuffix: true })}</p>
+                      {user.role === "staff" && (
+                        <p className="text-xs text-muted-foreground">Leave: {user.leaveDaysUsed || 0}/{user.leaveDaysQuota || 0} days used</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge variant={user.role === "admin" ? "default" : user.role === "staff" ? "secondary" : "outline"}>
+                      {user.role}
+                    </Badge>
+                    {showApproveButton && (
+                      <Button size="sm" onClick={() => { setSelectedUser(user); setApproveDialogOpen(true); }} data-testid={`button-approve-${user.id}`}>
+                        <UserCheck className="mr-2 h-4 w-4" />Approve
+                      </Button>
                     )}
+                    <Button size="icon" variant="ghost" onClick={() => handleEditUser(user)} data-testid={`button-edit-${user.id}`}>
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button size="icon" variant="ghost" onClick={() => handleDeleteUser(user)} data-testid={`button-delete-${user.id}`}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <Badge variant={user.role === "admin" ? "default" : user.role === "staff" ? "secondary" : "outline"}>
-                    {user.role}
-                  </Badge>
-                  {showApproveButton && (
-                    <Button size="sm" onClick={() => { setSelectedUser(user); setApproveDialogOpen(true); }} data-testid={`button-approve-${user.id}`}>
-                      <UserCheck className="mr-2 h-4 w-4" />Approve
-                    </Button>
-                  )}
-                  <Button size="icon" variant="ghost" onClick={() => handleEditUser(user)} data-testid={`button-edit-${user.id}`}>
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  <Button size="icon" variant="ghost" onClick={() => handleDeleteUser(user)} data-testid={`button-delete-${user.id}`}>
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        {list.length > 10 && (
+          <Pagination
+            currentPage={pagination.currentPage}
+            totalPages={pagination.totalPages}
+            pageSize={pagination.pageSize}
+            totalItems={pagination.totalItems}
+            onPageChange={pagination.onPageChange}
+            onPageSizeChange={pagination.onPageSizeChange}
+          />
+        )}
+      </>
     );
   };
 
@@ -191,8 +207,8 @@ export default function AdminUsersPage() {
               <TabsTrigger value="pending" data-testid="tab-pending-users">Pending ({pendingUsers.length})</TabsTrigger>
               <TabsTrigger value="approved" data-testid="tab-approved-users">Approved ({approvedUsers.length})</TabsTrigger>
             </TabsList>
-            <TabsContent value="pending">{renderUserList(filteredPending, true)}</TabsContent>
-            <TabsContent value="approved">{renderUserList(filteredApproved, false)}</TabsContent>
+            <TabsContent value="pending">{renderUserList(filteredPending, true, pendingPagination)}</TabsContent>
+            <TabsContent value="approved">{renderUserList(filteredApproved, false, approvedPagination)}</TabsContent>
           </Tabs>
         )}
 
