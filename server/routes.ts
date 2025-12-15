@@ -1007,9 +1007,13 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Task not found" });
       }
       
-      // When task is completed, also mark the booking as completed
+      // When task is completed, check if ALL tasks for this booking are completed
       if (data.status === "completed" && task.bookingId) {
-        await storage.updateBookingStatus(task.bookingId, "completed");
+        const bookingTasks = await storage.getTasksByBooking(task.bookingId);
+        const allTasksCompleted = bookingTasks.every(t => t.status === "completed");
+        if (allTasksCompleted) {
+          await storage.updateBookingStatus(task.bookingId, "completed");
+        }
       }
       
       res.json(task);
