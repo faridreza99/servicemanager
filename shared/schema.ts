@@ -162,6 +162,7 @@ export const tasks = pgTable("tasks", {
   title: text("title"),
   description: text("description").notNull(),
   status: taskStatusEnum("status").notNull().default("pending"),
+  attachments: text("attachments").array().default([]),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   completedAt: timestamp("completed_at"),
 });
