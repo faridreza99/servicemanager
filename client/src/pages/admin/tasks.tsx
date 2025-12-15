@@ -1,7 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { ClipboardList, Search, Plus } from "lucide-react";
-import { useState } from "react";
+import { ClipboardList, Search, Plus, Upload, X, FileText, Image } from "lucide-react";
+import { useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -29,10 +29,19 @@ const createTaskSchema = z.object({
 
 type CreateTaskForm = z.infer<typeof createTaskSchema>;
 
+interface UploadedFile {
+  url: string;
+  name: string;
+  type: "image" | "pdf";
+}
+
 export default function AdminTasksPage() {
   const [, setLocation] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   const form = useForm<CreateTaskForm>({
@@ -62,15 +71,81 @@ export default function AdminTasksPage() {
     },
   });
 
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setIsUploading(true);
+    const newFiles: UploadedFile[] = [];
+
+    for (const file of Array.from(files)) {
+      const isImage = file.type.startsWith("image/");
+      const isPdf = file.type === "application/pdf";
+
+      if (!isImage && !isPdf) {
+        toast({
+          title: "Invalid file type",
+          description: "Only images and PDFs are allowed",
+          variant: "destructive",
+        });
+        continue;
+      }
+
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const response = await fetch("/api/upload/cloudinary", {
+          method: "POST",
+          headers: getAuthHeader(),
+          body: formData,
+        });
+
+        if (!response.ok) {
+          throw new Error("Upload failed");
+        }
+
+        const result = await response.json();
+        newFiles.push({
+          url: result.url,
+          name: file.name,
+          type: isImage ? "image" : "pdf",
+        });
+      } catch {
+        toast({
+          title: "Upload failed",
+          description: `Failed to upload ${file.name}`,
+          variant: "destructive",
+        });
+      }
+    }
+
+    setUploadedFiles((prev) => [...prev, ...newFiles]);
+    setIsUploading(false);
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const removeFile = (index: number) => {
+    setUploadedFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const createTaskMutation = useMutation({
     mutationFn: async (data: CreateTaskForm) => {
-      return apiRequest("POST", "/api/tasks", data);
+      const payload = {
+        ...data,
+        attachments: uploadedFiles.map((f) => f.url),
+      };
+      return apiRequest("POST", "/api/tasks", payload);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
       toast({ title: "Task created", description: "The task has been assigned to the staff member." });
       setDialogOpen(false);
       form.reset();
+      setUploadedFiles([]);
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to create task", variant: "destructive" });
@@ -79,6 +154,14 @@ export default function AdminTasksPage() {
 
   const onSubmit = (data: CreateTaskForm) => {
     createTaskMutation.mutate(data);
+  };
+
+  const handleDialogChange = (open: boolean) => {
+    setDialogOpen(open);
+    if (!open) {
+      form.reset();
+      setUploadedFiles([]);
+    }
   };
 
   const pendingTasks = tasks.filter((t) => t.status === "pending");
@@ -126,14 +209,14 @@ export default function AdminTasksPage() {
               data-testid="input-search-tasks"
             />
           </div>
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <Dialog open={dialogOpen} onOpenChange={handleDialogChange}>
             <DialogTrigger asChild>
               <Button data-testid="button-create-task">
                 <Plus className="h-4 w-4 mr-2" />
                 Create Task
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-w-lg">
               <DialogHeader>
                 <DialogTitle>Create Internal Task</DialogTitle>
               </DialogHeader>
@@ -193,16 +276,76 @@ export default function AdminTasksPage() {
                       </FormItem>
                     )}
                   />
+
+                  <div className="space-y-2">
+                    <FormLabel>Attachments (Photos/PDFs)</FormLabel>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*,.pdf"
+                        multiple
+                        onChange={handleFileSelect}
+                        className="hidden"
+                        data-testid="input-file-upload"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isUploading}
+                        data-testid="button-add-attachment"
+                      >
+                        <Upload className="h-4 w-4 mr-2" />
+                        {isUploading ? "Uploading..." : "Add Files"}
+                      </Button>
+                    </div>
+
+                    {uploadedFiles.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {uploadedFiles.map((file, index) => (
+                          <div
+                            key={index}
+                            className="flex items-center gap-2 bg-muted px-3 py-1.5 rounded-md text-sm"
+                            data-testid={`attachment-${index}`}
+                          >
+                            {file.type === "image" ? (
+                              <Image className="h-4 w-4 text-muted-foreground" />
+                            ) : (
+                              <FileText className="h-4 w-4 text-muted-foreground" />
+                            )}
+                            <span className="max-w-[150px] truncate">{file.name}</span>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-5 w-5"
+                              onClick={() => removeFile(index)}
+                              data-testid={`button-remove-attachment-${index}`}
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
                   <div className="flex justify-end gap-2">
                     <Button
                       type="button"
                       variant="outline"
-                      onClick={() => setDialogOpen(false)}
+                      onClick={() => handleDialogChange(false)}
                       data-testid="button-cancel-task"
                     >
                       Cancel
                     </Button>
-                    <Button type="submit" disabled={createTaskMutation.isPending} data-testid="button-submit-task">
+                    <Button
+                      type="submit"
+                      disabled={createTaskMutation.isPending || isUploading}
+                      data-testid="button-submit-task"
+                    >
                       {createTaskMutation.isPending ? "Creating..." : "Create Task"}
                     </Button>
                   </div>

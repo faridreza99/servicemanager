@@ -1,4 +1,4 @@
-import { Calendar, Clock, User, CheckCircle, Circle, PlayCircle, ClipboardList } from "lucide-react";
+import { Calendar, Clock, User, CheckCircle, Circle, PlayCircle, ClipboardList, Paperclip, FileText, Image } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -83,6 +83,33 @@ export function TaskCard({ task, onStart, onComplete, onViewBooking }: TaskCardP
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-sm text-muted-foreground">{task.description}</p>
+
+        {task.attachments && task.attachments.length > 0 && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-1 text-sm text-muted-foreground">
+              <Paperclip className="h-3 w-3" />
+              <span>{task.attachments.length} attachment{task.attachments.length > 1 ? "s" : ""}</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {task.attachments.map((url, index) => {
+                const isPdf = url.toLowerCase().includes(".pdf") || url.includes("/raw/");
+                return (
+                  <a
+                    key={index}
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-sm text-primary hover:underline"
+                    data-testid={`link-attachment-${task.id}-${index}`}
+                  >
+                    {isPdf ? <FileText className="h-4 w-4" /> : <Image className="h-4 w-4" />}
+                    {isPdf ? "PDF" : "Image"} {index + 1}
+                  </a>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {task.booking?.customer && (
           <div className="flex items-center gap-3">
