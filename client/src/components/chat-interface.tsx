@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, Lock, DollarSign, CheckCircle, Paperclip, FileText, Image, Loader2, X } from "lucide-react";
+import { Send, Lock, DollarSign, CheckCircle, Paperclip, FileText, Image, Loader2, X, Mic, Square, Play, Pause } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -43,6 +43,87 @@ function getRoleBadgeVariant(role: UserRole) {
   }
 }
 
+function VoiceMessagePlayer({ audioUrl, isOwn, messageId }: { audioUrl: string; isOwn: boolean; messageId: string }) {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    const audio = new Audio(audioUrl);
+    audioRef.current = audio;
+
+    audio.addEventListener('loadedmetadata', () => {
+      setDuration(audio.duration);
+    });
+
+    audio.addEventListener('timeupdate', () => {
+      setCurrentTime(audio.currentTime);
+    });
+
+    audio.addEventListener('ended', () => {
+      setIsPlaying(false);
+      setCurrentTime(0);
+    });
+
+    return () => {
+      audio.pause();
+      audio.src = '';
+    };
+  }, [audioUrl]);
+
+  const togglePlayback = () => {
+    if (!audioRef.current) return;
+
+    if (isPlaying) {
+      audioRef.current.pause();
+      setIsPlaying(false);
+    } else {
+      audioRef.current.play();
+      setIsPlaying(true);
+    }
+  };
+
+  const formatTime = (seconds: number) => {
+    if (!isFinite(seconds)) return '0:00';
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
+
+  return (
+    <div 
+      className={`flex items-center gap-2 p-2 rounded-md min-w-[180px] ${isOwn ? "bg-primary-foreground/10" : "bg-background/50"}`}
+      data-testid={`voice-message-${messageId}`}
+    >
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        onClick={togglePlayback}
+        className="h-8 w-8 flex-shrink-0"
+        data-testid={`button-play-voice-${messageId}`}
+      >
+        {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+      </Button>
+      <div className="flex-1 min-w-0">
+        <div className="h-1 bg-muted rounded-full overflow-hidden">
+          <div 
+            className="h-full bg-primary rounded-full transition-all duration-100"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+        <div className="flex justify-between text-xs text-muted-foreground mt-1">
+          <span>{formatTime(currentTime)}</span>
+          <span>{formatTime(duration)}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function ChatInterface({
   messages,
   onSendMessage,
@@ -62,8 +143,17 @@ export function ChatInterface({
   const [attachmentType, setAttachmentType] = useState<string | null>(null);
   const [attachmentName, setAttachmentName] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [audioPreviewUrl, setAudioPreviewUrl] = useState<string | null>(null);
+  const [isPlayingPreview, setIsPlayingPreview] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const previewAudioRef = useRef<HTMLAudioElement | null>(null);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -104,6 +194,126 @@ export function ChatInterface({
     setAttachmentType(null);
     setAttachmentName(null);
   };
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        setAudioBlob(blob);
+        const url = URL.createObjectURL(blob);
+        setAudioPreviewUrl(url);
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+      setRecordingDuration(0);
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingDuration(prev => prev + 1);
+      }, 1000);
+    } catch (error) {
+      console.error('Failed to start recording:', error);
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+      }
+    }
+  };
+
+  const clearVoiceMessage = () => {
+    if (audioPreviewUrl) {
+      URL.revokeObjectURL(audioPreviewUrl);
+    }
+    setAudioBlob(null);
+    setAudioPreviewUrl(null);
+    setRecordingDuration(0);
+    setIsPlayingPreview(false);
+    if (previewAudioRef.current) {
+      previewAudioRef.current.pause();
+      previewAudioRef.current = null;
+    }
+  };
+
+  const togglePreviewPlayback = () => {
+    if (!audioPreviewUrl) return;
+
+    if (isPlayingPreview && previewAudioRef.current) {
+      previewAudioRef.current.pause();
+      setIsPlayingPreview(false);
+    } else {
+      if (!previewAudioRef.current) {
+        previewAudioRef.current = new Audio(audioPreviewUrl);
+        previewAudioRef.current.onended = () => setIsPlayingPreview(false);
+      }
+      previewAudioRef.current.play();
+      setIsPlayingPreview(true);
+    }
+  };
+
+  const uploadVoiceMessage = async () => {
+    if (!audioBlob) return;
+
+    setIsUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', audioBlob, 'voice-message.webm');
+
+      const response = await fetch('/api/upload/cloudinary', {
+        method: 'POST',
+        headers: getAuthHeader(),
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to upload voice message');
+      }
+
+      const data = await response.json();
+      onSendMessage('Voice message', isPrivate, false, undefined, data.url, 'audio/webm');
+      clearVoiceMessage();
+      setIsPrivate(false);
+    } catch (error) {
+      console.error('Voice message upload failed:', error);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const formatDuration = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  useEffect(() => {
+    return () => {
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+      }
+      if (audioPreviewUrl) {
+        URL.revokeObjectURL(audioPreviewUrl);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -244,6 +454,12 @@ export function ChatInterface({
                                   data-testid={`attachment-image-${msg.id}`}
                                 />
                               </a>
+                            ) : msg.attachmentType?.startsWith("audio/") ? (
+                              <VoiceMessagePlayer 
+                                audioUrl={msg.attachmentUrl} 
+                                isOwn={isOwn}
+                                messageId={msg.id}
+                              />
                             ) : (
                               <a 
                                 href={msg.attachmentUrl} 
@@ -258,7 +474,7 @@ export function ChatInterface({
                             )}
                           </div>
                         )}
-                        {msg.content && (!msg.attachmentUrl || msg.content !== "Shared a file") && (
+                        {msg.content && (!msg.attachmentUrl || (msg.content !== "Shared a file" && msg.content !== "Voice message")) && (
                           <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
                         )}
                       </div>
@@ -342,6 +558,59 @@ export function ChatInterface({
           </div>
         )}
 
+        {isRecording && (
+          <div className="flex items-center gap-3 px-3 py-2 bg-destructive/10 rounded-md">
+            <div className="h-3 w-3 rounded-full bg-destructive animate-pulse" />
+            <span className="text-sm font-medium text-destructive">Recording {formatDuration(recordingDuration)}</span>
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              onClick={stopRecording}
+              data-testid="button-stop-recording"
+            >
+              <Square className="h-3 w-3 mr-1" />
+              Stop
+            </Button>
+          </div>
+        )}
+
+        {audioPreviewUrl && !isRecording && (
+          <div className="flex items-center gap-2 px-3 py-2 bg-accent rounded-md">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={togglePreviewPlayback}
+              className="h-8 w-8"
+              data-testid="button-preview-play"
+            >
+              {isPlayingPreview ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+            </Button>
+            <Mic className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm flex-1">Voice message ({formatDuration(recordingDuration)})</span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={clearVoiceMessage}
+              className="h-6 w-6"
+              data-testid="button-clear-voice"
+            >
+              <X className="h-3 w-3" />
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={uploadVoiceMessage}
+              disabled={isUploading}
+              data-testid="button-send-voice"
+            >
+              {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            </Button>
+          </div>
+        )}
+
         <div className="flex gap-2">
           <input
             ref={fileInputRef}
@@ -356,7 +625,7 @@ export function ChatInterface({
             variant="outline"
             size="icon"
             onClick={() => fileInputRef.current?.click()}
-            disabled={isSending || isUploading}
+            disabled={isSending || isUploading || isRecording || !!audioPreviewUrl}
             data-testid="button-attach-file"
           >
             {isUploading ? (
@@ -364,6 +633,16 @@ export function ChatInterface({
             ) : (
               <Paperclip className="h-4 w-4" />
             )}
+          </Button>
+          <Button
+            type="button"
+            variant={isRecording ? "destructive" : "outline"}
+            size="icon"
+            onClick={isRecording ? stopRecording : startRecording}
+            disabled={isSending || isUploading || !!attachmentUrl || !!audioPreviewUrl}
+            data-testid="button-record-voice"
+          >
+            {isRecording ? <Square className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
           </Button>
           <Input
             placeholder={isQuotation ? "Add a description (optional)" : "Type a message..."}
