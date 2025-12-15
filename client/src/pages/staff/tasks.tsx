@@ -40,7 +40,13 @@ export default function StaffTasksPage() {
   const inProgressTasks = tasks.filter((t) => t.status === "in_progress");
   const completedTasks = tasks.filter((t) => t.status === "completed");
 
-  const filterTasks = (list: TaskWithDetails[]) => list.filter((t) => t.booking.service.name.toLowerCase().includes(searchQuery.toLowerCase()) || t.description.toLowerCase().includes(searchQuery.toLowerCase()));
+  const filterTasks = (list: TaskWithDetails[]) => list.filter((t) => {
+    const serviceName = t.booking?.service?.name?.toLowerCase() || "";
+    const taskTitle = t.title?.toLowerCase() || "";
+    const description = t.description.toLowerCase();
+    const query = searchQuery.toLowerCase();
+    return serviceName.includes(query) || taskTitle.includes(query) || description.includes(query);
+  });
 
   const renderTasksList = (list: TaskWithDetails[]) => {
     if (list.length === 0) {
@@ -54,7 +60,7 @@ export default function StaffTasksPage() {
             task={task}
             onStart={() => updateTaskMutation.mutate({ taskId: task.id, status: "in_progress" })}
             onComplete={() => updateTaskMutation.mutate({ taskId: task.id, status: "completed" })}
-            onViewBooking={() => setLocation(`/staff/bookings/${task.bookingId}`)}
+            onViewBooking={task.bookingId ? () => setLocation(`/staff/bookings/${task.bookingId}`) : undefined}
           />
         ))}
       </div>

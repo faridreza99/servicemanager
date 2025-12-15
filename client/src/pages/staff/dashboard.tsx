@@ -559,7 +559,7 @@ export default function StaffDashboard() {
                       task={task} 
                       onStart={() => updateTaskMutation.mutate({ taskId: task.id, status: "in_progress" })}
                       onComplete={() => updateTaskMutation.mutate({ taskId: task.id, status: "completed" })}
-                      onViewBooking={() => setLocation(`/staff/chat/${task.booking.chat?.id}`)}
+                      onViewBooking={task.booking?.chat?.id ? () => setLocation(`/staff/chat/${task.booking.chat?.id}`) : undefined}
                     />
                   ))}
                 </div>
