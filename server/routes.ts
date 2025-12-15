@@ -37,8 +37,12 @@ const updateBookingStatusSchema = z.object({
 });
 
 const assignBookingSchema = z.object({
-  staffId: z.string().min(1),
-});
+  staffId: z.string().min(1).optional(),
+  staffIds: z.array(z.string().min(1)).optional(),
+}).refine(
+  (data) => data.staffId || (data.staffIds && data.staffIds.length > 0),
+  { message: "Please select at least one staff member" }
+);
 
 const updateTaskStatusSchema = z.object({
   status: z.enum(taskStatusEnum.enumValues),
@@ -479,8 +483,14 @@ export async function registerRoutes(
       if (user.role === "customer" && booking.customer.id !== user.userId) {
         return res.status(403).json({ message: "Access denied" });
       }
-      if (user.role === "staff" && booking.assignedStaff?.id !== user.userId) {
-        return res.status(403).json({ message: "Access denied" });
+      if (user.role === "staff") {
+        // Check if staff is primary assignee OR has any task for this booking
+        const staffTasks = await storage.getTasksByBooking(req.params.id);
+        const isAssigned = booking.assignedStaff?.id === user.userId || 
+                           staffTasks.some(t => t.staffId === user.userId);
+        if (!isAssigned) {
+          return res.status(403).json({ message: "Access denied" });
+        }
       }
       
       res.json(booking);
@@ -597,60 +607,157 @@ export async function registerRoutes(
   app.post("/api/bookings/:id/assign", authMiddleware, requireRole("admin"), async (req: AuthenticatedRequest, res) => {
     try {
       const data = assignBookingSchema.parse(req.body);
-      const booking = await storage.assignBookingToStaff(req.params.id, data.staffId);
-      if (!booking) {
+      
+      // Support both single staffId and array of staffIds
+      const staffIdsToAssign = data.staffIds || (data.staffId ? [data.staffId] : []);
+      
+      if (staffIdsToAssign.length === 0) {
+        return res.status(400).json({ message: "Please select at least one staff member" });
+      }
+
+      const bookingWithDetails = await storage.getBooking(req.params.id);
+      if (!bookingWithDetails) {
         return res.status(404).json({ message: "Booking not found" });
       }
 
-      // Automatically create a task for the assigned staff
-      const bookingWithDetails = await storage.getBooking(booking.id);
-      if (bookingWithDetails) {
-        await storage.createTask({
-          bookingId: booking.id,
-          staffId: data.staffId,
-          description: `Service: ${bookingWithDetails.service.name} - Complete service for ${bookingWithDetails.customer.name}`,
-        });
+      // Get existing tasks for this booking to avoid duplicates
+      const existingTasks = await storage.getTasksByBooking(req.params.id);
+      const existingStaffIds = new Set(existingTasks.map(t => t.staffId));
+
+      // Filter to only new staff assignments
+      const newStaffIds = staffIdsToAssign.filter(id => !existingStaffIds.has(id));
+
+      // If no new staff to assign, return success (idempotent) with updated booking
+      if (newStaffIds.length === 0) {
+        const updatedBooking = await storage.getBooking(req.params.id);
+        return res.json(updatedBooking);
       }
 
-      await storage.createNotification({
-        userId: data.staffId,
-        type: "task",
-        title: "New Task Assigned",
-        content: `You have been assigned a new task for booking.`,
-      });
+      // Update primary assigned staff if not already set, or keep existing
+      if (!bookingWithDetails.assignedStaff) {
+        await storage.assignBookingToStaff(req.params.id, newStaffIds[0]);
+      }
 
-      await storage.createNotification({
-        userId: booking.customerId,
-        type: "booking",
-        title: "Staff Assigned",
-        content: `A staff member has been assigned to your booking.`,
-      });
+      // Create tasks and notifications for each new staff member
+      for (const staffId of newStaffIds) {
+        await storage.createTask({
+          bookingId: req.params.id,
+          staffId: staffId,
+          description: `Service: ${bookingWithDetails.service.name} - Complete service for ${bookingWithDetails.customer.name}`,
+        });
 
-      const staff = await storage.getUser(data.staffId);
-      if (bookingWithDetails && staff) {
-        emailService.sendStaffAssignment(
-          staff.email,
-          staff.name,
-          bookingWithDetails.service.name,
-          bookingWithDetails.customer.name,
-          bookingWithDetails.scheduledDate
-        );
-        if (whatsappService.isEnabled() && staff.phone) {
-          whatsappService.sendStaffAssignment(
-            staff.phone,
+        await storage.createNotification({
+          userId: staffId,
+          type: "task",
+          title: "New Task Assigned",
+          content: `You have been assigned a new task for booking.`,
+        });
+
+        const staff = await storage.getUser(staffId);
+        if (staff) {
+          emailService.sendStaffAssignment(
+            staff.email,
             staff.name,
             bookingWithDetails.service.name,
             bookingWithDetails.customer.name,
             bookingWithDetails.scheduledDate
           );
+          if (whatsappService.isEnabled() && staff.phone) {
+            whatsappService.sendStaffAssignment(
+              staff.phone,
+              staff.name,
+              bookingWithDetails.service.name,
+              bookingWithDetails.customer.name,
+              bookingWithDetails.scheduledDate
+            );
+          }
         }
       }
 
-      res.json(booking);
+      await storage.createNotification({
+        userId: bookingWithDetails.customer.id,
+        type: "booking",
+        title: "Staff Assigned",
+        content: `${newStaffIds.length} staff member(s) have been assigned to your booking.`,
+      });
+
+      const updatedBooking = await storage.getBooking(req.params.id);
+      res.json(updatedBooking);
     } catch (error) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: error.errors[0].message });
       }
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Remove staff from booking
+  app.delete("/api/bookings/:id/staff/:staffId", authMiddleware, requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+    try {
+      const { id: bookingId, staffId } = req.params;
+
+      const booking = await storage.getBooking(bookingId);
+      if (!booking) {
+        return res.status(404).json({ message: "Booking not found" });
+      }
+
+      // Find all tasks for this staff member in this booking
+      const tasks = await storage.getTasksByBooking(bookingId);
+      const tasksToDelete = tasks.filter(t => t.staffId === staffId);
+      
+      if (tasksToDelete.length === 0) {
+        return res.status(404).json({ message: "Staff is not assigned to this booking" });
+      }
+
+      // Delete all tasks for this staff member
+      for (const task of tasksToDelete) {
+        await storage.deleteTask(task.id);
+      }
+
+      // If this was the primary assigned staff, update to another assigned staff or clear
+      if (booking.assignedStaff?.id === staffId) {
+        const remainingTasks = tasks.filter(t => t.staffId !== staffId);
+        if (remainingTasks.length > 0) {
+          await storage.assignBookingToStaff(bookingId, remainingTasks[0].staffId);
+        } else {
+          await storage.assignBookingToStaff(bookingId, undefined);
+        }
+      }
+
+      // Notify the removed staff member
+      await storage.createNotification({
+        userId: staffId,
+        type: "task",
+        title: "Task Removed",
+        content: `You have been removed from a booking task.`,
+      });
+
+      res.json({ message: "Staff removed from booking" });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Get assigned staff for a booking (via tasks)
+  app.get("/api/bookings/:id/assigned-staff", authMiddleware, requireRole("admin"), async (req: AuthenticatedRequest, res) => {
+    try {
+      const booking = await storage.getBooking(req.params.id);
+      if (!booking) {
+        return res.status(404).json({ message: "Booking not found" });
+      }
+
+      const tasks = await storage.getTasksByBooking(req.params.id);
+      const assignedStaff = await Promise.all(
+        tasks.map(async (task) => {
+          const user = await storage.getUser(task.staffId);
+          return user ? { ...user, password: undefined, taskId: task.id, taskStatus: task.status } : null;
+        })
+      );
+
+      res.json(assignedStaff.filter(Boolean));
+    } catch (error) {
       console.error(error);
       res.status(500).json({ message: "Internal server error" });
     }

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { ArrowLeft, Download, User, Calendar, Clock, DollarSign } from "lucide-react";
+import { ArrowLeft, Download, User, Calendar, Clock, DollarSign, X, ChevronsUpDown, UserPlus } from "lucide-react";
 import { io, Socket } from "socket.io-client";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { ChatInterface } from "@/components/chat-interface";
@@ -11,12 +11,18 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { getAuthHeader } from "@/lib/auth";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { BookingWithDetails, MessageWithSender, User as UserType, BookingStatus } from "@shared/schema";
 import { formatDistanceToNow, format } from "date-fns";
+
+interface AssignedStaff extends UserType {
+  taskId: string;
+  taskStatus: string;
+}
 
 function getInitials(name: string) {
   return name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
@@ -43,7 +49,8 @@ export default function AdminBookingDetailPage() {
   const { toast } = useToast();
   const [socket, setSocket] = useState<Socket | null>(null);
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
-  const [selectedStaffId, setSelectedStaffId] = useState<string>("");
+  const [selectedStaffIds, setSelectedStaffIds] = useState<string[]>([]);
+  const [staffSelectorOpen, setStaffSelectorOpen] = useState(false);
 
   const { data: booking, isLoading: bookingLoading } = useQuery<BookingWithDetails>({
     queryKey: ["/api/bookings", id],
@@ -74,6 +81,16 @@ export default function AdminBookingDetailPage() {
       if (!res.ok) throw new Error("Failed to fetch staff");
       return res.json();
     },
+  });
+
+  const { data: assignedStaff = [], isLoading: assignedStaffLoading } = useQuery<AssignedStaff[]>({
+    queryKey: ["/api/bookings", id, "assigned-staff"],
+    queryFn: async () => {
+      const res = await fetch(`/api/bookings/${id}/assigned-staff`, { headers: getAuthHeader() });
+      if (!res.ok) throw new Error("Failed to fetch assigned staff");
+      return res.json();
+    },
+    enabled: !!id,
   });
 
   useEffect(() => {
@@ -122,15 +139,27 @@ export default function AdminBookingDetailPage() {
   });
 
   const assignMutation = useMutation({
-    mutationFn: async ({ staffId }: { staffId: string }) => 
-      apiRequest("POST", `/api/bookings/${id}/assign`, { staffId }),
+    mutationFn: async ({ staffIds }: { staffIds: string[] }) => 
+      apiRequest("POST", `/api/bookings/${id}/assign`, { staffIds }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/bookings", id] });
-      toast({ title: "Staff assigned", description: "A task has been created for the assigned staff." });
+      queryClient.invalidateQueries({ queryKey: ["/api/bookings", id, "assigned-staff"] });
+      toast({ title: "Staff assigned", description: "Tasks have been created for the assigned staff." });
       setAssignDialogOpen(false);
-      setSelectedStaffId("");
+      setSelectedStaffIds([]);
     },
     onError: (error: Error) => toast({ title: "Failed to assign staff", description: error.message, variant: "destructive" }),
+  });
+
+  const removeStaffMutation = useMutation({
+    mutationFn: async ({ staffId }: { staffId: string }) => 
+      apiRequest("DELETE", `/api/bookings/${id}/staff/${staffId}`, {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/bookings", id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/bookings", id, "assigned-staff"] });
+      toast({ title: "Staff removed", description: "The staff member has been removed from this booking." });
+    },
+    onError: (error: Error) => toast({ title: "Failed to remove staff", description: error.message, variant: "destructive" }),
   });
 
   const handleSendMessage = useCallback((content: string, isPrivate: boolean, isQuotation?: boolean, quotationAmount?: number, attachmentUrl?: string, attachmentType?: string) => {
@@ -155,6 +184,17 @@ export default function AdminBookingDetailPage() {
       toast({ title: "Download failed", description: "Could not download chat transcript.", variant: "destructive" });
     }
   }, [chatId, id, toast]);
+
+  const handleStaffToggle = (staffId: string) => {
+    setSelectedStaffIds(prev => 
+      prev.includes(staffId) 
+        ? prev.filter(id => id !== staffId)
+        : [...prev, staffId]
+    );
+  };
+
+  const assignedStaffIds = new Set(assignedStaff.map(s => s.id));
+  const availableStaff = staffUsers.filter(s => !assignedStaffIds.has(s.id));
 
   const isLoading = bookingLoading || messagesLoading;
 
@@ -229,18 +269,49 @@ export default function AdminBookingDetailPage() {
                   </div>
 
                   <div className="pt-2 border-t">
-                    <p className="text-sm font-medium mb-2">Assigned Staff</p>
-                    {booking.assignedStaff ? (
-                      <div className="flex items-center gap-3">
-                        <Avatar className="h-8 w-8">
-                          {booking.assignedStaff.profilePhoto && (
-                            <AvatarImage src={booking.assignedStaff.profilePhoto} alt={booking.assignedStaff.name} />
-                          )}
-                          <AvatarFallback className="text-xs">{getInitials(booking.assignedStaff.name)}</AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <p className="text-sm">{booking.assignedStaff.name}</p>
-                        </div>
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <p className="text-sm font-medium">Assigned Staff</p>
+                      <Button 
+                        size="sm" 
+                        variant="ghost" 
+                        onClick={() => setAssignDialogOpen(true)}
+                        data-testid="button-add-staff"
+                      >
+                        <UserPlus className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    
+                    {assignedStaffLoading ? (
+                      <Skeleton className="h-10 w-full" />
+                    ) : assignedStaff.length > 0 ? (
+                      <div className="space-y-2">
+                        {assignedStaff.map((staff) => (
+                          <div key={staff.id} className="flex items-center justify-between gap-2" data-testid={`assigned-staff-${staff.id}`}>
+                            <div className="flex items-center gap-2">
+                              <Avatar className="h-8 w-8">
+                                {staff.profilePhoto && (
+                                  <AvatarImage src={staff.profilePhoto} alt={staff.name} />
+                                )}
+                                <AvatarFallback className="text-xs">{getInitials(staff.name)}</AvatarFallback>
+                              </Avatar>
+                              <div>
+                                <p className="text-sm">{staff.name}</p>
+                                <Badge variant="secondary" className="text-xs">
+                                  {getStatusLabel(staff.taskStatus)}
+                                </Badge>
+                              </div>
+                            </div>
+                            <Button 
+                              size="icon" 
+                              variant="ghost"
+                              onClick={() => removeStaffMutation.mutate({ staffId: staff.id })}
+                              disabled={removeStaffMutation.isPending}
+                              data-testid={`button-remove-staff-${staff.id}`}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))}
                       </div>
                     ) : (
                       <Button 
@@ -283,26 +354,78 @@ export default function AdminBookingDetailPage() {
             <DialogHeader>
               <DialogTitle>Assign Staff</DialogTitle>
               <DialogDescription>
-                Select a staff member to handle this booking
+                Select one or more staff members to handle this booking
               </DialogDescription>
             </DialogHeader>
-            <Select value={selectedStaffId} onValueChange={setSelectedStaffId}>
-              <SelectTrigger data-testid="select-staff">
-                <SelectValue placeholder="Select staff member" />
-              </SelectTrigger>
-              <SelectContent>
-                {staffUsers.map((staff) => (
-                  <SelectItem key={staff.id} value={staff.id}>
-                    {staff.name} ({staff.email})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            
+            <Popover open={staffSelectorOpen} onOpenChange={setStaffSelectorOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="w-full justify-between"
+                  data-testid="select-staff-trigger"
+                >
+                  {selectedStaffIds.length > 0 
+                    ? `${selectedStaffIds.length} staff member(s) selected`
+                    : "Select staff members"}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-full p-0" align="start">
+                <div className="max-h-60 overflow-y-auto p-2">
+                  {availableStaff.length === 0 ? (
+                    <p className="text-sm text-muted-foreground p-2">No available staff to assign</p>
+                  ) : (
+                    availableStaff.map((staff) => (
+                      <div
+                        key={staff.id}
+                        className="flex items-center gap-2 p-2 hover-elevate rounded-md cursor-pointer"
+                        onClick={() => handleStaffToggle(staff.id)}
+                        data-testid={`staff-option-${staff.id}`}
+                      >
+                        <Checkbox
+                          checked={selectedStaffIds.includes(staff.id)}
+                          onCheckedChange={() => handleStaffToggle(staff.id)}
+                        />
+                        <Avatar className="h-6 w-6">
+                          {staff.profilePhoto && (
+                            <AvatarImage src={staff.profilePhoto} alt={staff.name} />
+                          )}
+                          <AvatarFallback className="text-xs">{getInitials(staff.name)}</AvatarFallback>
+                        </Avatar>
+                        <span className="text-sm">{staff.name}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </PopoverContent>
+            </Popover>
+
+            {selectedStaffIds.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-2">
+                {selectedStaffIds.map((staffId) => {
+                  const staff = staffUsers.find(s => s.id === staffId);
+                  if (!staff) return null;
+                  return (
+                    <Badge key={staffId} variant="secondary" className="gap-1">
+                      {staff.name}
+                      <X 
+                        className="h-3 w-3 cursor-pointer" 
+                        onClick={() => handleStaffToggle(staffId)}
+                      />
+                    </Badge>
+                  );
+                })}
+              </div>
+            )}
+
             <DialogFooter>
-              <Button variant="outline" onClick={() => setAssignDialogOpen(false)}>Cancel</Button>
+              <Button variant="outline" onClick={() => { setAssignDialogOpen(false); setSelectedStaffIds([]); }}>
+                Cancel
+              </Button>
               <Button 
-                onClick={() => selectedStaffId && assignMutation.mutate({ staffId: selectedStaffId })} 
-                disabled={assignMutation.isPending || !selectedStaffId}
+                onClick={() => assignMutation.mutate({ staffIds: selectedStaffIds })} 
+                disabled={assignMutation.isPending || selectedStaffIds.length === 0}
                 data-testid="button-confirm-assign"
               >
                 {assignMutation.isPending ? "Assigning..." : "Assign"}
