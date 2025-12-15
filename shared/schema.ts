@@ -157,8 +157,9 @@ export const messagesRelations = relations(messages, ({ one }) => ({
 
 export const tasks = pgTable("tasks", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  bookingId: varchar("booking_id").notNull().references(() => bookings.id),
+  bookingId: varchar("booking_id").references(() => bookings.id),
   staffId: varchar("staff_id").notNull().references(() => users.id),
+  title: text("title"),
   description: text("description").notNull(),
   status: taskStatusEnum("status").notNull().default("pending"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -327,7 +328,7 @@ export type MessageWithSender = Message & {
 };
 
 export type TaskWithDetails = Task & {
-  booking: BookingWithDetails;
+  booking?: BookingWithDetails | null;
   staff: User;
 };
 

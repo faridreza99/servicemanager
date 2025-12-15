@@ -565,12 +565,12 @@ export class DatabaseStorage implements IStorage {
   private mapTasksWithDetails(rows: any[]): TaskWithDetails[] {
     return rows.map((row) => ({
       ...row.tasks,
-      booking: {
+      booking: row.bookings ? {
         ...row.bookings,
         service: row.services,
         customer: row.customerUsers,
         chat: row.chats || undefined,
-      },
+      } : null,
       staff: row.staffUsers!,
     }));
   }

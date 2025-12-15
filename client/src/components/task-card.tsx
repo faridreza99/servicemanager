@@ -1,4 +1,4 @@
-import { Calendar, Clock, User, CheckCircle, Circle, PlayCircle } from "lucide-react";
+import { Calendar, Clock, User, CheckCircle, Circle, PlayCircle, ClipboardList } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -53,12 +53,23 @@ function getInitials(name: string) {
 }
 
 export function TaskCard({ task, onStart, onComplete, onViewBooking }: TaskCardProps) {
+  const isInternalTask = !task.booking;
+  const taskTitle = task.title || (task.booking?.service?.name) || "Internal Task";
+
   return (
     <Card>
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div className="flex-1 min-w-0">
-            <CardTitle className="text-lg">{task.booking.service.name}</CardTitle>
+            <div className="flex items-center gap-2">
+              <CardTitle className="text-lg">{taskTitle}</CardTitle>
+              {isInternalTask && (
+                <Badge variant="outline" className="text-xs">
+                  <ClipboardList className="h-3 w-3 mr-1" />
+                  Internal
+                </Badge>
+              )}
+            </div>
             <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground">
               <Clock className="h-3 w-3" />
               {formatDistanceToNow(new Date(task.createdAt), { addSuffix: true })}
@@ -73,17 +84,19 @@ export function TaskCard({ task, onStart, onComplete, onViewBooking }: TaskCardP
       <CardContent className="space-y-4">
         <p className="text-sm text-muted-foreground">{task.description}</p>
 
-        <div className="flex items-center gap-3">
-          <Avatar className="h-8 w-8">
-            <AvatarFallback className="text-xs bg-secondary">
-              {getInitials(task.booking.customer.name)}
-            </AvatarFallback>
-          </Avatar>
-          <div>
-            <p className="text-sm font-medium">{task.booking.customer.name}</p>
-            <p className="text-xs text-muted-foreground">Customer</p>
+        {task.booking?.customer && (
+          <div className="flex items-center gap-3">
+            <Avatar className="h-8 w-8">
+              <AvatarFallback className="text-xs bg-secondary">
+                {getInitials(task.booking.customer.name)}
+              </AvatarFallback>
+            </Avatar>
+            <div>
+              <p className="text-sm font-medium">{task.booking.customer.name}</p>
+              <p className="text-xs text-muted-foreground">Customer</p>
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="flex flex-wrap gap-2">
           {task.status === "pending" && onStart && (
@@ -106,7 +119,7 @@ export function TaskCard({ task, onStart, onComplete, onViewBooking }: TaskCardP
               Complete
             </Button>
           )}
-          {onViewBooking && (
+          {task.booking && onViewBooking && (
             <Button 
               size="sm" 
               variant="outline"

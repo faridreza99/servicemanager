@@ -958,31 +958,34 @@ export async function registerRoutes(
       const data = insertTaskSchema.parse(req.body);
       const task = await storage.createTask(data);
 
+      const taskTitle = data.title || data.description.slice(0, 50);
       await storage.createNotification({
         userId: data.staffId,
         type: "task",
         title: "New Task Assigned",
-        content: `You have been assigned a new task: ${data.description}`,
+        content: `You have been assigned a new task: ${taskTitle}`,
       });
 
       const staff = await storage.getUser(data.staffId);
-      const booking = await storage.getBooking(data.bookingId);
-      if (staff && booking) {
-        emailService.sendTaskAssignment(
-          staff.email,
-          staff.name,
-          data.description,
-          data.bookingId,
-          booking.customer.name
-        );
-        if (whatsappService.isEnabled() && staff.phone) {
-          whatsappService.sendTaskAssignment(
-            staff.phone,
+      if (staff && data.bookingId) {
+        const booking = await storage.getBooking(data.bookingId);
+        if (booking) {
+          emailService.sendTaskAssignment(
+            staff.email,
             staff.name,
             data.description,
             data.bookingId,
             booking.customer.name
           );
+          if (whatsappService.isEnabled() && staff.phone) {
+            whatsappService.sendTaskAssignment(
+              staff.phone,
+              staff.name,
+              data.description,
+              data.bookingId,
+              booking.customer.name
+            );
+          }
         }
       }
 
