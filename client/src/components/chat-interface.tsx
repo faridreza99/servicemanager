@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Send, Lock, DollarSign, CheckCircle, Paperclip, FileText, Image, Loader2, X, Mic, Square, Play, Pause } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,9 +8,12 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
 import type { MessageWithSender, UserRole } from "@shared/schema";
 import { formatDistanceToNow } from "date-fns";
 import { useAuth, getAuthHeader } from "@/lib/auth";
+
+let currentlyPlayingAudio: HTMLAudioElement | null = null;
 
 interface ChatInterfaceProps {
   messages: MessageWithSender[];
@@ -47,30 +50,45 @@ function VoiceMessagePlayer({ audioUrl, isOwn, messageId }: { audioUrl: string; 
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
+
+  const handleLoadedMetadata = useCallback(() => {
+    if (audioRef.current) {
+      setDuration(audioRef.current.duration);
+    }
+  }, []);
+
+  const handleTimeUpdate = useCallback(() => {
+    if (audioRef.current) {
+      setCurrentTime(audioRef.current.currentTime);
+    }
+  }, []);
+
+  const handleEnded = useCallback(() => {
+    setIsPlaying(false);
+    setCurrentTime(0);
+    if (currentlyPlayingAudio === audioRef.current) {
+      currentlyPlayingAudio = null;
+    }
+  }, []);
+
+  const handlePause = useCallback(() => {
+    if (audioRef.current && !audioRef.current.ended) {
+      setIsPlaying(false);
+    }
+  }, []);
 
   useEffect(() => {
-    const audio = new Audio(audioUrl);
-    audioRef.current = audio;
-
-    audio.addEventListener('loadedmetadata', () => {
-      setDuration(audio.duration);
-    });
-
-    audio.addEventListener('timeupdate', () => {
-      setCurrentTime(audio.currentTime);
-    });
-
-    audio.addEventListener('ended', () => {
-      setIsPlaying(false);
-      setCurrentTime(0);
-    });
-
+    const audio = audioRef.current;
     return () => {
-      audio.pause();
-      audio.src = '';
+      if (audio) {
+        audio.pause();
+        if (currentlyPlayingAudio === audio) {
+          currentlyPlayingAudio = null;
+        }
+      }
     };
-  }, [audioUrl]);
+  }, []);
 
   const togglePlayback = () => {
     if (!audioRef.current) return;
@@ -78,8 +96,16 @@ function VoiceMessagePlayer({ audioUrl, isOwn, messageId }: { audioUrl: string; 
     if (isPlaying) {
       audioRef.current.pause();
       setIsPlaying(false);
+      currentlyPlayingAudio = null;
     } else {
-      audioRef.current.play();
+      if (currentlyPlayingAudio && currentlyPlayingAudio !== audioRef.current) {
+        currentlyPlayingAudio.pause();
+      }
+      currentlyPlayingAudio = audioRef.current;
+      audioRef.current.play().catch(() => {
+        setIsPlaying(false);
+        currentlyPlayingAudio = null;
+      });
       setIsPlaying(true);
     }
   };
@@ -98,6 +124,15 @@ function VoiceMessagePlayer({ audioUrl, isOwn, messageId }: { audioUrl: string; 
       className={`flex items-center gap-2 p-2 rounded-md min-w-[180px] ${isOwn ? "bg-primary-foreground/10" : "bg-background/50"}`}
       data-testid={`voice-message-${messageId}`}
     >
+      <audio 
+        ref={audioRef} 
+        src={audioUrl} 
+        preload="metadata"
+        onLoadedMetadata={handleLoadedMetadata}
+        onTimeUpdate={handleTimeUpdate}
+        onEnded={handleEnded}
+        onPause={handlePause}
+      />
       <Button
         type="button"
         variant="ghost"
@@ -135,6 +170,7 @@ export function ChatInterface({
   canClose = false,
 }: ChatInterfaceProps) {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [message, setMessage] = useState("");
   const [isPrivate, setIsPrivate] = useState(false);
   const [isQuotation, setIsQuotation] = useState(false);
@@ -154,6 +190,7 @@ export function ChatInterface({
   const audioChunksRef = useRef<Blob[]>([]);
   const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
   const previewAudioRef = useRef<HTMLAudioElement | null>(null);
+  const isMountedRef = useRef(true);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -195,9 +232,14 @@ export function ChatInterface({
     setAttachmentName(null);
   };
 
+  const streamRef = useRef<MediaStream | null>(null);
+
   const startRecording = async () => {
+    if (isRecording) return;
+    
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
       const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
@@ -210,10 +252,16 @@ export function ChatInterface({
 
       mediaRecorder.onstop = () => {
         const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        setAudioBlob(blob);
         const url = URL.createObjectURL(blob);
-        setAudioPreviewUrl(url);
         stream.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
+        
+        if (isMountedRef.current) {
+          setAudioBlob(blob);
+          setAudioPreviewUrl(url);
+        } else {
+          URL.revokeObjectURL(url);
+        }
       };
 
       mediaRecorder.start();
@@ -224,6 +272,11 @@ export function ChatInterface({
       }, 1000);
     } catch (error) {
       console.error('Failed to start recording:', error);
+      toast({
+        title: "Microphone access denied",
+        description: "Please allow microphone access to record voice messages.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -269,7 +322,7 @@ export function ChatInterface({
   };
 
   const uploadVoiceMessage = async () => {
-    if (!audioBlob) return;
+    if (!audioBlob || isUploading) return;
 
     setIsUploading(true);
     try {
@@ -293,6 +346,11 @@ export function ChatInterface({
       setIsPrivate(false);
     } catch (error) {
       console.error('Voice message upload failed:', error);
+      toast({
+        title: "Upload failed",
+        description: "Could not send voice message. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setIsUploading(false);
     }
@@ -305,12 +363,20 @@ export function ChatInterface({
   };
 
   useEffect(() => {
+    isMountedRef.current = true;
     return () => {
+      isMountedRef.current = false;
       if (recordingTimerRef.current) {
         clearInterval(recordingTimerRef.current);
       }
       if (audioPreviewUrl) {
         URL.revokeObjectURL(audioPreviewUrl);
+      }
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+      }
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+        mediaRecorderRef.current.stop();
       }
     };
   }, []);
