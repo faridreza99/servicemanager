@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { ClipboardList, Search, Plus, Upload, X, FileText, Image } from "lucide-react";
+import { ClipboardList, Search, Plus, Upload, X, FileText, Image, Check, ChevronsUpDown } from "lucide-react";
 import { useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -15,15 +15,18 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { getAuthHeader } from "@/lib/auth";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { TaskWithDetails, User } from "@shared/schema";
+import { cn } from "@/lib/utils";
 
 const createTaskSchema = z.object({
-  staffId: z.string().min(1, "Please select a staff member"),
+  staffIds: z.array(z.string()).min(1, "Please select at least one staff member"),
   title: z.string().min(1, "Title is required"),
   description: z.string().min(1, "Description is required"),
 });
@@ -48,7 +51,7 @@ export default function AdminTasksPage() {
   const form = useForm<CreateTaskForm>({
     resolver: zodResolver(createTaskSchema),
     defaultValues: {
-      staffId: "",
+      staffIds: [],
       title: "",
       description: "",
     },
@@ -136,14 +139,22 @@ export default function AdminTasksPage() {
   const createTaskMutation = useMutation({
     mutationFn: async (data: CreateTaskForm) => {
       const payload = {
-        ...data,
+        staffIds: data.staffIds,
+        title: data.title,
+        description: data.description,
         attachments: uploadedFiles.map((f) => f.url),
       };
       return apiRequest("POST", "/api/tasks", payload);
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
-      toast({ title: "Task created", description: "The task has been assigned to the staff member." });
+      const count = variables.staffIds.length;
+      toast({ 
+        title: count > 1 ? "Tasks created" : "Task created", 
+        description: count > 1 
+          ? `The task has been assigned to ${count} staff members.`
+          : "The task has been assigned to the staff member."
+      });
       setDialogOpen(false);
       form.reset();
       setUploadedFiles([]);
@@ -245,24 +256,82 @@ export default function AdminTasksPage() {
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                   <FormField
                     control={form.control}
-                    name="staffId"
+                    name="staffIds"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Assign to Staff</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <FormControl>
-                            <SelectTrigger data-testid="select-staff">
-                              <SelectValue placeholder="Select a staff member" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {staffUsers.map((staff) => (
-                              <SelectItem key={staff.id} value={staff.id} data-testid={`option-staff-${staff.id}`}>
-                                {staff.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <FormControl>
+                              <Button
+                                variant="outline"
+                                role="combobox"
+                                className={cn(
+                                  "w-full justify-between",
+                                  !field.value.length && "text-muted-foreground"
+                                )}
+                                data-testid="select-staff"
+                              >
+                                {field.value.length > 0
+                                  ? `${field.value.length} staff selected`
+                                  : "Select staff members"}
+                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                              </Button>
+                            </FormControl>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-full p-2" align="start">
+                            <div className="space-y-1 max-h-60 overflow-y-auto">
+                              {staffUsers.map((staff) => {
+                                const isSelected = field.value.includes(staff.id);
+                                return (
+                                  <div
+                                    key={staff.id}
+                                    className="flex items-center gap-2 p-2 rounded-md hover-elevate cursor-pointer"
+                                    onClick={() => {
+                                      const newValue = isSelected
+                                        ? field.value.filter((id) => id !== staff.id)
+                                        : [...field.value, staff.id];
+                                      field.onChange(newValue);
+                                    }}
+                                    data-testid={`option-staff-${staff.id}`}
+                                  >
+                                    <Checkbox
+                                      checked={isSelected}
+                                      className="pointer-events-none"
+                                    />
+                                    <span className="text-sm">{staff.name}</span>
+                                  </div>
+                                );
+                              })}
+                              {staffUsers.length === 0 && (
+                                <div className="text-sm text-muted-foreground p-2">No staff members found</div>
+                              )}
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+                        {field.value.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-2">
+                            {field.value.map((staffId) => {
+                              const staff = staffUsers.find((s) => s.id === staffId);
+                              return (
+                                <Badge
+                                  key={staffId}
+                                  variant="secondary"
+                                  className="text-xs"
+                                  data-testid={`badge-staff-${staffId}`}
+                                >
+                                  {staff?.name}
+                                  <X
+                                    className="ml-1 h-3 w-3 cursor-pointer"
+                                    onClick={() => {
+                                      field.onChange(field.value.filter((id) => id !== staffId));
+                                    }}
+                                  />
+                                </Badge>
+                              );
+                            })}
+                          </div>
+                        )}
                         <FormMessage />
                       </FormItem>
                     )}

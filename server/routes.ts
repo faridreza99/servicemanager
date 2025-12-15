@@ -953,43 +953,80 @@ export async function registerRoutes(
     }
   });
 
+  // Schema for multi-staff task creation
+  const createMultiTaskSchema = z.object({
+    staffIds: z.array(z.string().min(1)).min(1, "Please select at least one staff member").optional(),
+    staffId: z.string().min(1).optional(),
+    title: z.string().optional(),
+    description: z.string().min(1, "Description is required"),
+    bookingId: z.string().optional(),
+    attachments: z.array(z.string()).optional(),
+  }).refine(
+    (data) => (data.staffIds && data.staffIds.length > 0) || data.staffId,
+    { message: "Please select at least one staff member", path: ["staffIds"] }
+  );
+
   app.post("/api/tasks", authMiddleware, requireRole("admin"), async (req: AuthenticatedRequest, res) => {
     try {
-      const data = insertTaskSchema.parse(req.body);
-      const task = await storage.createTask(data);
+      // Validate request body once with proper schema
+      const validatedData = createMultiTaskSchema.parse(req.body);
+      
+      // Support both staffIds (array) and staffId (single) for backward compatibility
+      const staffIdsToAssign: string[] = validatedData.staffIds && validatedData.staffIds.length > 0
+        ? validatedData.staffIds 
+        : validatedData.staffId 
+          ? [validatedData.staffId] 
+          : [];
 
-      const taskTitle = data.title || data.description.slice(0, 50);
-      await storage.createNotification({
-        userId: data.staffId,
-        type: "task",
-        title: "New Task Assigned",
-        content: `You have been assigned a new task: ${taskTitle}`,
-      });
+      const createdTasks = [];
+      const taskTitle = validatedData.title || validatedData.description.slice(0, 50);
+      
+      for (const sid of staffIdsToAssign) {
+        const taskData = {
+          staffId: sid,
+          title: validatedData.title,
+          description: validatedData.description,
+          bookingId: validatedData.bookingId,
+          attachments: validatedData.attachments,
+        };
+        
+        const parsedData = insertTaskSchema.parse(taskData);
+        const task = await storage.createTask(parsedData);
+        createdTasks.push(task);
 
-      const staff = await storage.getUser(data.staffId);
-      if (staff && data.bookingId) {
-        const booking = await storage.getBooking(data.bookingId);
-        if (booking) {
-          emailService.sendTaskAssignment(
-            staff.email,
-            staff.name,
-            data.description,
-            data.bookingId,
-            booking.customer.name
-          );
-          if (whatsappService.isEnabled() && staff.phone) {
-            whatsappService.sendTaskAssignment(
-              staff.phone,
+        await storage.createNotification({
+          userId: sid,
+          type: "task",
+          title: "New Task Assigned",
+          content: `You have been assigned a new task: ${taskTitle}`,
+        });
+
+        const staff = await storage.getUser(sid);
+        if (staff && validatedData.bookingId) {
+          const booking = await storage.getBooking(validatedData.bookingId);
+          if (booking) {
+            emailService.sendTaskAssignment(
+              staff.email,
               staff.name,
-              data.description,
-              data.bookingId,
+              validatedData.description,
+              validatedData.bookingId,
               booking.customer.name
             );
+            if (whatsappService.isEnabled() && staff.phone) {
+              whatsappService.sendTaskAssignment(
+                staff.phone,
+                staff.name,
+                validatedData.description,
+                validatedData.bookingId,
+                booking.customer.name
+              );
+            }
           }
         }
       }
 
-      res.json(task);
+      // Always return first task for backward compatibility with existing consumers
+      res.json(createdTasks[0]);
     } catch (error) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: error.errors[0].message });
