@@ -36,6 +36,8 @@ import StaffTasksPage from "@/pages/staff/tasks";
 import StaffBookingDetailPage from "@/pages/staff/booking-detail";
 import StaffNotificationsPage from "@/pages/staff/notifications";
 import StaffSettingsPage from "@/pages/staff/settings";
+import StaffChatPage from "@/pages/staff/chat";
+import StaffChatsPage from "@/pages/staff/chats";
 import PublicHomePage from "@/pages/public/home";
 import PublicServicesPage from "@/pages/public/services";
 import PublicServiceDetailPage from "@/pages/public/service-detail";
@@ -289,6 +291,18 @@ function Router() {
       <Route path="/staff/bookings/:id">
         <ProtectedRoute roles={["staff"]}>
           <StaffBookingDetailPage />
+        </ProtectedRoute>
+      </Route>
+
+      <Route path="/staff/chats">
+        <ProtectedRoute roles={["staff"]}>
+          <StaffChatsPage />
+        </ProtectedRoute>
+      </Route>
+
+      <Route path="/staff/chat/:id">
+        <ProtectedRoute roles={["staff"]}>
+          <StaffChatPage />
         </ProtectedRoute>
       </Route>
 
