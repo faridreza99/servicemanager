@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -6,6 +6,7 @@ import { z } from "zod";
 import { Plus, Search, Briefcase, Loader2, Upload, X, Image as ImageIcon } from "lucide-react";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { ServiceCard } from "@/components/service-card";
+import { Pagination, usePagination } from "@/components/pagination";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -203,6 +204,12 @@ export default function AdminServicesPage() {
       s.description.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const pagination = usePagination(filteredServices, 9);
+
+  useEffect(() => {
+    pagination.onPageChange(1);
+  }, [searchQuery]);
+
   return (
     <DashboardLayout title="Service Management">
       <div className="max-w-7xl mx-auto p-6 space-y-6">
@@ -244,21 +251,34 @@ export default function AdminServicesPage() {
             <p className="text-sm">Create your first service to get started</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredServices.map((service) => (
-              <ServiceCard
-                key={service.id}
-                service={service}
-                showStatus
-                isAdmin
-                onEdit={() => handleEdit(service)}
-                onToggleActive={() =>
-                  toggleActiveMutation.mutate({ id: service.id, isActive: !service.isActive })
-                }
-                onDelete={() => handleDelete(service)}
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {pagination.paginatedItems.map((service) => (
+                <ServiceCard
+                  key={service.id}
+                  service={service}
+                  showStatus
+                  isAdmin
+                  onEdit={() => handleEdit(service)}
+                  onToggleActive={() =>
+                    toggleActiveMutation.mutate({ id: service.id, isActive: !service.isActive })
+                  }
+                  onDelete={() => handleDelete(service)}
+                />
+              ))}
+            </div>
+            {pagination.totalPages > 1 && (
+              <Pagination
+                currentPage={pagination.currentPage}
+                totalPages={pagination.totalPages}
+                pageSize={pagination.pageSize}
+                totalItems={pagination.totalItems}
+                onPageChange={pagination.onPageChange}
+                onPageSizeChange={pagination.onPageSizeChange}
+                pageSizeOptions={[9, 18, 36]}
               />
-            ))}
-          </div>
+            )}
+          </>
         )}
 
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

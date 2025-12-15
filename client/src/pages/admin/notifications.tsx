@@ -1,6 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Bell, Check, CheckCheck, Filter, Send, Upload, X, Loader2, FileText, Image as ImageIcon, Video, Paperclip } from "lucide-react";
+import { Pagination, usePagination } from "@/components/pagination";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -162,6 +163,12 @@ export default function AdminNotificationsPage() {
     return true;
   });
 
+  const pagination = usePagination(filteredNotifications, 10);
+
+  useEffect(() => {
+    pagination.onPageChange(1);
+  }, [filter]);
+
   const unreadCount = notifications.filter((n) => !n.read).length;
 
   return (
@@ -241,8 +248,9 @@ export default function AdminNotificationsPage() {
                 </p>
               </div>
             ) : (
-              <div className="space-y-3">
-                {filteredNotifications.map((notification) => (
+              <>
+                <div className="space-y-3">
+                  {pagination.paginatedItems.map((notification) => (
                   <div
                     key={notification.id}
                     className={`flex items-start gap-4 p-4 rounded-lg border transition-colors ${
@@ -313,7 +321,18 @@ export default function AdminNotificationsPage() {
                     )}
                   </div>
                 ))}
-              </div>
+                </div>
+                {pagination.totalPages > 1 && (
+                  <Pagination
+                    currentPage={pagination.currentPage}
+                    totalPages={pagination.totalPages}
+                    pageSize={pagination.pageSize}
+                    totalItems={pagination.totalItems}
+                    onPageChange={pagination.onPageChange}
+                    onPageSizeChange={pagination.onPageSizeChange}
+                  />
+                )}
+              </>
             )}
           </CardContent>
         </Card>

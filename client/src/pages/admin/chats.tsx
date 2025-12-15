@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Pagination, usePagination } from "@/components/pagination";
 import { getAuthHeader } from "@/lib/auth";
 import type { BookingWithDetails } from "@shared/schema";
 import { formatDistanceToNow } from "date-fns";
@@ -30,6 +31,9 @@ export default function AdminChatsPage() {
   const openChats = bookingsWithChats.filter((b) => b.chat?.isOpen);
   const closedChats = bookingsWithChats.filter((b) => !b.chat?.isOpen);
 
+  const openChatsPagination = usePagination(openChats, 10);
+  const closedChatsPagination = usePagination(closedChats, 10);
+
   return (
     <DashboardLayout title="All Chats">
       <div className="max-w-4xl mx-auto p-6 space-y-6">
@@ -40,21 +44,33 @@ export default function AdminChatsPage() {
           ) : openChats.length === 0 ? (
             <Card><CardContent className="p-8 text-center text-muted-foreground"><MessageSquare className="h-12 w-12 mx-auto mb-4 opacity-50" /><p className="text-lg font-medium">No open conversations</p></CardContent></Card>
           ) : (
-            <div className="space-y-4">
-              {openChats.map((booking) => (
-                <Card key={booking.id} className="hover-elevate cursor-pointer" onClick={() => setLocation(`/admin/chat/${booking.chat?.id}`)} data-testid={`chat-card-${booking.chat?.id}`}>
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between gap-4 flex-wrap">
-                      <div className="flex items-center gap-3">
-                        <Avatar className="h-10 w-10"><AvatarFallback>{getInitials(booking.customer.name)}</AvatarFallback></Avatar>
-                        <div><p className="font-medium">{booking.service.name}</p><p className="text-sm text-muted-foreground">{booking.customer.name} - {formatDistanceToNow(new Date(booking.chat?.createdAt || ""), { addSuffix: true })}</p></div>
+            <>
+              <div className="space-y-4">
+                {openChatsPagination.paginatedItems.map((booking) => (
+                  <Card key={booking.id} className="hover-elevate cursor-pointer" onClick={() => setLocation(`/admin/chat/${booking.chat?.id}`)} data-testid={`chat-card-${booking.chat?.id}`}>
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between gap-4 flex-wrap">
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-10 w-10"><AvatarFallback>{getInitials(booking.customer.name)}</AvatarFallback></Avatar>
+                          <div><p className="font-medium">{booking.service.name}</p><p className="text-sm text-muted-foreground">{booking.customer.name} - {formatDistanceToNow(new Date(booking.chat?.createdAt || ""), { addSuffix: true })}</p></div>
+                        </div>
+                        <div className="flex items-center gap-2"><Badge variant="default">Active</Badge><ArrowRight className="h-4 w-4 text-muted-foreground" /></div>
                       </div>
-                      <div className="flex items-center gap-2"><Badge variant="default">Active</Badge><ArrowRight className="h-4 w-4 text-muted-foreground" /></div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+              {openChatsPagination.totalPages > 1 && (
+                <Pagination
+                  currentPage={openChatsPagination.currentPage}
+                  totalPages={openChatsPagination.totalPages}
+                  pageSize={openChatsPagination.pageSize}
+                  totalItems={openChatsPagination.totalItems}
+                  onPageChange={openChatsPagination.onPageChange}
+                  onPageSizeChange={openChatsPagination.onPageSizeChange}
+                />
+              )}
+            </>
           )}
         </div>
 
@@ -62,7 +78,7 @@ export default function AdminChatsPage() {
           <div>
             <h2 className="text-lg font-semibold mb-4">Closed Conversations ({closedChats.length})</h2>
             <div className="space-y-4">
-              {closedChats.map((booking) => (
+              {closedChatsPagination.paginatedItems.map((booking) => (
                 <Card key={booking.id} className="opacity-75" data-testid={`chat-card-closed-${booking.chat?.id}`}>
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between gap-4 flex-wrap">
@@ -76,6 +92,16 @@ export default function AdminChatsPage() {
                 </Card>
               ))}
             </div>
+            {closedChatsPagination.totalPages > 1 && (
+              <Pagination
+                currentPage={closedChatsPagination.currentPage}
+                totalPages={closedChatsPagination.totalPages}
+                pageSize={closedChatsPagination.pageSize}
+                totalItems={closedChatsPagination.totalItems}
+                onPageChange={closedChatsPagination.onPageChange}
+                onPageSizeChange={closedChatsPagination.onPageSizeChange}
+              />
+            )}
           </div>
         )}
       </div>
