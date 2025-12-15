@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Pagination } from "@/components/pagination";
 import { Star, Search, ArrowRight, Filter } from "lucide-react";
 import { SERVICE_CATEGORIES, type ServiceWithRating, type ServiceCategory } from "@shared/schema";
 
@@ -174,27 +175,13 @@ export default function ServicesPage() {
             </div>
             
             {data?.pagination && data.pagination.totalPages > 1 && (
-              <div className="flex items-center justify-center gap-2 mt-8">
-                <Button
-                  variant="outline"
-                  disabled={page <= 1}
-                  onClick={() => setPage(p => p - 1)}
-                  data-testid="button-prev-page"
-                >
-                  Previous
-                </Button>
-                <span className="text-sm text-muted-foreground px-4">
-                  Page {page} of {data.pagination.totalPages}
-                </span>
-                <Button
-                  variant="outline"
-                  disabled={!data.pagination.hasMore}
-                  onClick={() => setPage(p => p + 1)}
-                  data-testid="button-next-page"
-                >
-                  Next
-                </Button>
-              </div>
+              <Pagination
+                currentPage={page}
+                totalPages={data.pagination.totalPages}
+                pageSize={data.pagination.limit}
+                totalItems={data.pagination.total}
+                onPageChange={setPage}
+              />
             )}
           </>
         )}

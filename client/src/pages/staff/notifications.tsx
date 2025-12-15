@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Bell, Check, CheckCheck, Filter, Paperclip } from "lucide-react";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -13,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Pagination, usePagination } from "@/components/pagination";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
@@ -65,6 +66,18 @@ export default function StaffNotificationsPage() {
     if (filter === "read") return n.read;
     return true;
   });
+
+  const pagination = usePagination(filteredNotifications, 10);
+
+  useEffect(() => {
+    pagination.onPageChange(1);
+  }, [filter]);
+
+  useEffect(() => {
+    if (pagination.currentPage > pagination.totalPages && pagination.totalPages > 0) {
+      pagination.onPageChange(pagination.totalPages);
+    }
+  }, [filteredNotifications.length]);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
@@ -138,79 +151,91 @@ export default function StaffNotificationsPage() {
                 </p>
               </div>
             ) : (
-              <div className="space-y-3">
-                {filteredNotifications.map((notification) => (
-                  <div
-                    key={notification.id}
-                    className={`flex items-start gap-4 p-4 rounded-lg border transition-colors ${
-                      notification.read
-                        ? "bg-background"
-                        : "bg-accent/30 border-accent"
-                    }`}
-                    data-testid={`notification-item-${notification.id}`}
-                  >
+              <>
+                <div className="space-y-3">
+                  {pagination.paginatedItems.map((notification) => (
                     <div
-                      className={`flex items-center justify-center h-10 w-10 rounded-full ${
-                        notificationTypeColors[notification.type] || "bg-muted"
+                      key={notification.id}
+                      className={`flex items-start gap-4 p-4 rounded-lg border transition-colors ${
+                        notification.read
+                          ? "bg-background"
+                          : "bg-accent/30 border-accent"
                       }`}
+                      data-testid={`notification-item-${notification.id}`}
                     >
-                      <Bell className="h-5 w-5" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="font-medium">{notification.title}</p>
-                        <Badge
-                          variant="outline"
-                          className={notificationTypeColors[notification.type]}
-                        >
-                          {notification.type}
-                        </Badge>
-                        {!notification.read && (
-                          <Badge variant="secondary" className="text-xs">
-                            New
-                          </Badge>
-                        )}
-                      </div>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        {notification.content}
-                      </p>
-                      {notification.attachments && notification.attachments.length > 0 && (
-                        <div className="flex flex-wrap gap-2 mt-2">
-                          {notification.attachments.map((url, idx) => (
-                            <a
-                              key={idx}
-                              href={url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex items-center gap-1 text-xs text-primary hover:underline"
-                              data-testid={`link-attachment-${notification.id}-${idx}`}
-                            >
-                              <Paperclip className="h-3 w-3" />
-                              Attachment {idx + 1}
-                            </a>
-                          ))}
-                        </div>
-                      )}
-                      <p className="text-xs text-muted-foreground mt-2">
-                        {formatDistanceToNow(new Date(notification.createdAt), {
-                          addSuffix: true,
-                        })}
-                      </p>
-                    </div>
-                    {!notification.read && (
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => markReadMutation.mutate(notification.id)}
-                        disabled={markReadMutation.isPending}
-                        data-testid={`button-mark-read-${notification.id}`}
+                      <div
+                        className={`flex items-center justify-center h-10 w-10 rounded-full ${
+                          notificationTypeColors[notification.type] || "bg-muted"
+                        }`}
                       >
-                        <Check className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                ))}
-              </div>
+                        <Bell className="h-5 w-5" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-medium">{notification.title}</p>
+                          <Badge
+                            variant="outline"
+                            className={notificationTypeColors[notification.type]}
+                          >
+                            {notification.type}
+                          </Badge>
+                          {!notification.read && (
+                            <Badge variant="secondary" className="text-xs">
+                              New
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          {notification.content}
+                        </p>
+                        {notification.attachments && notification.attachments.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {notification.attachments.map((url, idx) => (
+                              <a
+                                key={idx}
+                                href={url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-1 text-xs text-primary hover:underline"
+                                data-testid={`link-attachment-${notification.id}-${idx}`}
+                              >
+                                <Paperclip className="h-3 w-3" />
+                                Attachment {idx + 1}
+                              </a>
+                            ))}
+                          </div>
+                        )}
+                        <p className="text-xs text-muted-foreground mt-2">
+                          {formatDistanceToNow(new Date(notification.createdAt), {
+                            addSuffix: true,
+                          })}
+                        </p>
+                      </div>
+                      {!notification.read && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => markReadMutation.mutate(notification.id)}
+                          disabled={markReadMutation.isPending}
+                          data-testid={`button-mark-read-${notification.id}`}
+                        >
+                          <Check className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                {pagination.totalPages > 1 && (
+                  <Pagination
+                    currentPage={pagination.currentPage}
+                    totalPages={pagination.totalPages}
+                    pageSize={pagination.pageSize}
+                    totalItems={pagination.totalItems}
+                    onPageChange={pagination.onPageChange}
+                    onPageSizeChange={pagination.onPageSizeChange}
+                  />
+                )}
+              </>
             )}
           </CardContent>
         </Card>

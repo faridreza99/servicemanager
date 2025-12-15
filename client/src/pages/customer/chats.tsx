@@ -1,11 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
+import { useEffect } from "react";
 import { MessageSquare, ArrowRight } from "lucide-react";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Pagination, usePagination } from "@/components/pagination";
 import { getAuthHeader } from "@/lib/auth";
 import type { BookingWithDetails } from "@shared/schema";
 import { formatDistanceToNow } from "date-fns";
@@ -27,6 +29,25 @@ export default function CustomerChatsPage() {
   const bookingsWithChats = bookings.filter((b) => b.chat);
   const openChats = bookingsWithChats.filter((b) => b.chat?.isOpen);
   const closedChats = bookingsWithChats.filter((b) => !b.chat?.isOpen);
+
+  const openChatsPagination = usePagination(openChats, 10);
+  const closedChatsPagination = usePagination(closedChats, 10);
+
+  useEffect(() => {
+    if (openChatsPagination.currentPage > openChatsPagination.totalPages && openChatsPagination.totalPages > 0) {
+      openChatsPagination.onPageChange(openChatsPagination.totalPages);
+    } else if (openChatsPagination.totalPages === 0) {
+      openChatsPagination.onPageChange(1);
+    }
+  }, [openChats.length]);
+
+  useEffect(() => {
+    if (closedChatsPagination.currentPage > closedChatsPagination.totalPages && closedChatsPagination.totalPages > 0) {
+      closedChatsPagination.onPageChange(closedChatsPagination.totalPages);
+    } else if (closedChatsPagination.totalPages === 0) {
+      closedChatsPagination.onPageChange(1);
+    }
+  }, [closedChats.length]);
 
   return (
     <DashboardLayout title="Messages">
@@ -53,36 +74,48 @@ export default function CustomerChatsPage() {
               </CardContent>
             </Card>
           ) : (
-            <div className="space-y-4">
-              {openChats.map((booking) => (
-                <Card 
-                  key={booking.id} 
-                  className="hover-elevate cursor-pointer"
-                  onClick={() => setLocation(`/dashboard/chat/${booking.chat?.id}`)}
-                  data-testid={`chat-card-${booking.chat?.id}`}
-                >
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between gap-4 flex-wrap">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                          <MessageSquare className="h-5 w-5 text-primary" />
+            <>
+              <div className="space-y-4">
+                {openChatsPagination.paginatedItems.map((booking) => (
+                  <Card 
+                    key={booking.id} 
+                    className="hover-elevate cursor-pointer"
+                    onClick={() => setLocation(`/dashboard/chat/${booking.chat?.id}`)}
+                    data-testid={`chat-card-${booking.chat?.id}`}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between gap-4 flex-wrap">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                            <MessageSquare className="h-5 w-5 text-primary" />
+                          </div>
+                          <div>
+                            <p className="font-medium">{booking.service.name}</p>
+                            <p className="text-sm text-muted-foreground">
+                              Started {formatDistanceToNow(new Date(booking.chat?.createdAt || ""), { addSuffix: true })}
+                            </p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-medium">{booking.service.name}</p>
-                          <p className="text-sm text-muted-foreground">
-                            Started {formatDistanceToNow(new Date(booking.chat?.createdAt || ""), { addSuffix: true })}
-                          </p>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="default">Active</Badge>
+                          <ArrowRight className="h-4 w-4 text-muted-foreground" />
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="default">Active</Badge>
-                        <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+              {openChatsPagination.totalPages > 1 && (
+                <Pagination
+                  currentPage={openChatsPagination.currentPage}
+                  totalPages={openChatsPagination.totalPages}
+                  pageSize={openChatsPagination.pageSize}
+                  totalItems={openChatsPagination.totalItems}
+                  onPageChange={openChatsPagination.onPageChange}
+                  onPageSizeChange={openChatsPagination.onPageSizeChange}
+                />
+              )}
+            </>
           )}
         </div>
 
@@ -90,7 +123,7 @@ export default function CustomerChatsPage() {
           <div>
             <h2 className="text-lg font-semibold mb-4">Closed Conversations</h2>
             <div className="space-y-4">
-              {closedChats.map((booking) => (
+              {closedChatsPagination.paginatedItems.map((booking) => (
                 <Card 
                   key={booking.id}
                   className="opacity-75"
@@ -115,6 +148,16 @@ export default function CustomerChatsPage() {
                 </Card>
               ))}
             </div>
+            {closedChatsPagination.totalPages > 1 && (
+              <Pagination
+                currentPage={closedChatsPagination.currentPage}
+                totalPages={closedChatsPagination.totalPages}
+                pageSize={closedChatsPagination.pageSize}
+                totalItems={closedChatsPagination.totalItems}
+                onPageChange={closedChatsPagination.onPageChange}
+                onPageSizeChange={closedChatsPagination.onPageSizeChange}
+              />
+            )}
           </div>
         )}
       </div>

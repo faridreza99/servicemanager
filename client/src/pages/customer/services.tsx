@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Search, Briefcase, Filter, X } from "lucide-react";
@@ -16,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Pagination, usePagination } from "@/components/pagination";
 import { getAuthHeader } from "@/lib/auth";
 import { SERVICE_CATEGORIES, type Service, type ServiceCategory } from "@shared/schema";
 
@@ -42,6 +43,12 @@ export default function CustomerServicesPage() {
       return res.json();
     },
   });
+
+  const pagination = usePagination(services, 9);
+
+  useEffect(() => {
+    pagination.onPageChange(1);
+  }, [selectedCategory, searchQuery]);
 
   const clearFilters = () => {
     setSearchQuery("");
@@ -132,15 +139,27 @@ export default function CustomerServicesPage() {
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {services.map((service) => (
-              <ServiceCard
-                key={service.id}
-                service={service}
-                onBook={() => setLocation(`/dashboard/book/${service.id}`)}
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {pagination.paginatedItems.map((service) => (
+                <ServiceCard
+                  key={service.id}
+                  service={service}
+                  onBook={() => setLocation(`/dashboard/book/${service.id}`)}
+                />
+              ))}
+            </div>
+            {pagination.totalPages > 1 && (
+              <Pagination
+                currentPage={pagination.currentPage}
+                totalPages={pagination.totalPages}
+                pageSize={pagination.pageSize}
+                totalItems={pagination.totalItems}
+                onPageChange={pagination.onPageChange}
+                onPageSizeChange={pagination.onPageSizeChange}
               />
-            ))}
-          </div>
+            )}
+          </>
         )}
       </div>
     </DashboardLayout>
