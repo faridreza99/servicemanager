@@ -213,38 +213,47 @@ export default function StaffDashboard() {
 
   const handleClockAction = (action: "in" | "out") => {
     setLocationStatus("Fetching location...");
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const locationData = {
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
-          };
-          setLocationStatus("Location captured");
-          if (action === "in") {
-            clockInMutation.mutate(locationData);
-          } else {
-            clockOutMutation.mutate(locationData);
-          }
-        },
-        () => {
-          setLocationStatus("Location unavailable");
-          if (action === "in") {
-            clockInMutation.mutate({});
-          } else {
-            clockOutMutation.mutate({});
-          }
-        },
-        { enableHighAccuracy: true, timeout: 10000 }
-      );
-    } else {
-      setLocationStatus("Geolocation not supported");
-      if (action === "in") {
-        clockInMutation.mutate({});
-      } else {
-        clockOutMutation.mutate({});
-      }
+    if (!navigator.geolocation) {
+      setLocationStatus("Location not supported");
+      toast({ 
+        title: "GPS Location Required", 
+        description: "Your browser does not support location services. Please use a modern browser to clock in/out.",
+        variant: "destructive"
+      });
+      return;
     }
+    
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const locationData = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        };
+        setLocationStatus("Location captured");
+        if (action === "in") {
+          clockInMutation.mutate(locationData);
+        } else {
+          clockOutMutation.mutate(locationData);
+        }
+      },
+      (error) => {
+        setLocationStatus("Location denied");
+        let errorMessage = "Please enable location services and try again.";
+        if (error.code === error.PERMISSION_DENIED) {
+          errorMessage = "Location permission denied. Please allow location access in your browser settings and refresh the page.";
+        } else if (error.code === error.POSITION_UNAVAILABLE) {
+          errorMessage = "Location unavailable. Please ensure GPS is enabled on your device.";
+        } else if (error.code === error.TIMEOUT) {
+          errorMessage = "Location request timed out. Please try again.";
+        }
+        toast({ 
+          title: "GPS Location Required", 
+          description: errorMessage,
+          variant: "destructive"
+        });
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
   };
 
   const pendingTasks = tasks.filter((t) => t.status === "pending");
