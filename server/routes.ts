@@ -540,7 +540,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/bookings/:id/status", authMiddleware, requireRole("admin", "staff"), async (req: AuthenticatedRequest, res) => {
+  app.patch("/api/bookings/:id/status", authMiddleware, requireRole("admin"), async (req: AuthenticatedRequest, res) => {
     try {
       const data = updateBookingStatusSchema.parse(req.body);
       const booking = await storage.updateBookingStatus(req.params.id, data.status);
