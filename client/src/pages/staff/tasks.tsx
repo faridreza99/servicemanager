@@ -59,7 +59,6 @@ export default function StaffTasksPage() {
             key={task.id} 
             task={task}
             onStart={() => updateTaskMutation.mutate({ taskId: task.id, status: "in_progress" })}
-            onComplete={() => updateTaskMutation.mutate({ taskId: task.id, status: "completed" })}
             onViewBooking={task.bookingId ? () => setLocation(`/staff/bookings/${task.bookingId}`) : undefined}
           />
         ))}

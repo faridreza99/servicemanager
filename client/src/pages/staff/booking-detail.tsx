@@ -161,7 +161,7 @@ export default function StaffBookingDetailPage() {
           </div>
         ) : (
           <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
-            <div className="lg:w-80 border-b lg:border-b-0 lg:border-r p-4 overflow-y-auto">
+            <div className="lg:w-80 shrink-0 border-b lg:border-b-0 lg:border-r p-4 overflow-y-auto max-h-[40vh] lg:max-h-none">
               <Card className="mb-4">
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -219,14 +219,7 @@ export default function StaffBookingDetailPage() {
                         </Button>
                       )}
                       {task.status === "in_progress" && (
-                        <Button 
-                          size="sm" 
-                          onClick={() => updateTaskMutation.mutate({ taskId: task.id, status: "completed" })}
-                          disabled={updateTaskMutation.isPending}
-                          data-testid="button-complete-task"
-                        >
-                          <CheckCircle className="mr-2 h-4 w-4" />Complete
-                        </Button>
+                        <p className="text-xs text-muted-foreground">Awaiting admin approval to complete</p>
                       )}
                     </div>
                   </CardContent>
@@ -234,7 +227,7 @@ export default function StaffBookingDetailPage() {
               )}
             </div>
 
-            <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="flex-1 flex flex-col overflow-hidden min-h-[50vh] lg:min-h-0">
               {booking.chat ? (
                 <ChatInterface 
                   messages={messages} 
