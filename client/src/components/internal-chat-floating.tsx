@@ -16,6 +16,7 @@ export function InternalChatFloating() {
   const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
   const [messageInput, setMessageInput] = useState("");
+  const [hasUnread, setHasUnread] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
 
@@ -68,6 +69,9 @@ export function InternalChatFloating() {
           return [...old, message];
         }
       );
+      if (message.senderId !== user?.id) {
+        setHasUnread(true);
+      }
     });
 
     return () => {
@@ -190,11 +194,17 @@ export function InternalChatFloating() {
       
       <Button
         size="icon"
-        onClick={() => setIsOpen(!isOpen)}
-        className="h-12 w-12 rounded-full shadow-lg"
+        onClick={() => {
+          setIsOpen(!isOpen);
+          if (!isOpen) setHasUnread(false);
+        }}
+        className="h-12 w-12 rounded-full shadow-lg relative"
         data-testid="button-team-chat-toggle"
       >
         {isOpen ? <X className="h-5 w-5" /> : <MessageCircle className="h-5 w-5" />}
+        {hasUnread && !isOpen && (
+          <span className="absolute -top-1 -right-1 h-4 w-4 bg-blue-500 rounded-full border-2 border-background animate-pulse" />
+        )}
       </Button>
     </div>
   );
