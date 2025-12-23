@@ -82,6 +82,7 @@ Preferred communication style: Simple, everyday language.
 - Private messaging capability (customer-to-admin only)
 - Real-time notification delivery
 - Quotation system integrated into chat messages
+- Internal chat system for staff-to-staff and staff-to-admin communication
 
 **Code Organization**
 - Shared types and schemas in `/shared` directory for type consistency
@@ -99,6 +100,7 @@ Preferred communication style: Simple, everyday language.
 - Messages table for chat history with sender information and privacy flags
 - Tasks table for staff assignments linked to bookings
 - Notifications table for user-specific alerts with read/unread status
+- Internal chats tables (internal_chats, internal_chat_participants, internal_messages) for staff/admin communication
 
 **Enums for Status Management**
 - User roles: customer, admin, staff

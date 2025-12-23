@@ -43,6 +43,7 @@ import PublicServicesPage from "@/pages/public/services";
 import PublicServiceDetailPage from "@/pages/public/service-detail";
 import PublicAboutPage from "@/pages/public/about";
 import PublicContactPage from "@/pages/public/contact";
+import { InternalChatFloating } from "@/components/internal-chat-floating";
 
 function ProtectedRoute({ children, roles }: { children: React.ReactNode; roles?: string[] }) {
   const { user, isLoading } = useAuth();
@@ -332,6 +333,7 @@ function App() {
             <TooltipProvider>
               <Toaster />
               <Router />
+              <InternalChatFloating />
             </TooltipProvider>
           </AuthProvider>
         </SiteSettingsProvider>

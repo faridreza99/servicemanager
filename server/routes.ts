@@ -79,6 +79,12 @@ export async function registerRoutes(
     const user = socket.data.user;
     console.log(`User ${user.email} connected`);
 
+    socket.join(`user-${user.userId}`);
+
+    socket.on("join", (room: string) => {
+      socket.join(room);
+    });
+
     socket.on("join_chat", (chatId: string) => {
       socket.join(`chat:${chatId}`);
     });
@@ -2272,7 +2278,8 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Invalid participant" });
       }
 
-      const participantIds = [req.user!.userId, participantId].sort();
+      const currentUserId = req.user!.userId;
+      const participantIds = [currentUserId, participantId].sort();
       
       const existingChat = await storage.getInternalChatByParticipants(participantIds);
       if (existingChat) {
@@ -2281,7 +2288,7 @@ export async function registerRoutes(
       }
 
       const chat = await storage.createInternalChat(
-        { type: "direct", createdById: req.user!.userId },
+        { type: "direct", createdById: currentUserId },
         participantIds
       );
       const chatDetails = await storage.getInternalChat(chat.id);
