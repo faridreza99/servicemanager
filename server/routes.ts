@@ -2411,7 +2411,7 @@ export async function registerRoutes(
   // Send a team chat message (broadcast to all staff/admin)
   app.post("/api/team-chat/messages", authMiddleware, requireStaffOrAdmin, async (req: AuthenticatedRequest, res) => {
     try {
-      const { content } = req.body;
+      const { content, replyToId, replyToName, replyToContent, attachmentUrl, attachmentType } = req.body;
       
       if (!content?.trim()) {
         return res.status(400).json({ message: "Message content is required" });
@@ -2420,6 +2420,11 @@ export async function registerRoutes(
       const message = await storage.createTeamMessage({
         senderId: req.user!.userId,
         content: content.trim(),
+        replyToId: replyToId || null,
+        replyToName: replyToName || null,
+        replyToContent: replyToContent || null,
+        attachmentUrl: attachmentUrl || null,
+        attachmentType: attachmentType || null,
       });
 
       const sender = await storage.getUser(req.user!.userId);
