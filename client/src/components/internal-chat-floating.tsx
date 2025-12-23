@@ -171,11 +171,7 @@ export function InternalChatFloating() {
       const res = await apiRequest("POST", "/api/team-chat/messages", data);
       return res.json();
     },
-    onSuccess: (newMessage: TeamMessageWithSender) => {
-      queryClient.setQueryData<TeamMessageWithSender[]>(
-        ["/api/team-chat/messages"],
-        (old = []) => [...old, newMessage]
-      );
+    onSuccess: () => {
       setMessageInput("");
       setReplyTo(null);
     },
