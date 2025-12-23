@@ -8,8 +8,14 @@ import { useAuth } from "@/lib/auth";
 import { apiRequest } from "@/lib/queryClient";
 import { format } from "date-fns";
 import { io, Socket } from "socket.io-client";
-import { MessageCircle, X, Send, Users, Loader2 } from "lucide-react";
+import { MessageCircle, X, Send, Users, Loader2, Mic, MicOff, Reply, CornerDownRight } from "lucide-react";
 import type { TeamMessageWithSender } from "@shared/schema";
+
+interface ReplyInfo {
+  id: string;
+  name: string;
+  content: string;
+}
 
 export function InternalChatFloating() {
   const { user, token } = useAuth();
@@ -17,8 +23,11 @@ export function InternalChatFloating() {
   const [isOpen, setIsOpen] = useState(false);
   const [messageInput, setMessageInput] = useState("");
   const [hasUnread, setHasUnread] = useState(false);
+  const [replyTo, setReplyTo] = useState<ReplyInfo | null>(null);
+  const [isListening, setIsListening] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
 
   const canUseTeamChat = user && (user.role === "staff" || user.role === "admin");
 
@@ -29,8 +38,8 @@ export function InternalChatFloating() {
   });
 
   const sendMessageMutation = useMutation({
-    mutationFn: async (content: string) => {
-      const res = await apiRequest("POST", "/api/team-chat/messages", { content });
+    mutationFn: async (data: { content: string; replyToId?: string; replyToName?: string; replyToContent?: string }) => {
+      const res = await apiRequest("POST", "/api/team-chat/messages", data);
       return res.json();
     },
     onSuccess: (newMessage: TeamMessageWithSender) => {
@@ -39,8 +48,49 @@ export function InternalChatFloating() {
         (old = []) => [...old, newMessage]
       );
       setMessageInput("");
+      setReplyTo(null);
     },
   });
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        const recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = false;
+        recognition.lang = "en-US";
+
+        recognition.onresult = (event) => {
+          const transcript = event.results[0][0].transcript;
+          setMessageInput((prev) => prev + (prev ? " " : "") + transcript);
+          setIsListening(false);
+        };
+
+        recognition.onerror = () => {
+          setIsListening(false);
+        };
+
+        recognition.onend = () => {
+          setIsListening(false);
+        };
+
+        recognitionRef.current = recognition;
+      }
+    }
+  }, []);
+
+  const toggleVoiceInput = () => {
+    if (!recognitionRef.current) return;
+
+    if (isListening) {
+      recognitionRef.current.stop();
+      setIsListening(false);
+    } else {
+      recognitionRef.current.start();
+      setIsListening(true);
+    }
+  };
 
   useEffect(() => {
     if (!token || !canUseTeamChat) return;
@@ -90,7 +140,26 @@ export function InternalChatFloating() {
 
   const handleSendMessage = () => {
     if (!messageInput.trim()) return;
-    sendMessageMutation.mutate(messageInput);
+    
+    const data: { content: string; replyToId?: string; replyToName?: string; replyToContent?: string } = {
+      content: messageInput.trim(),
+    };
+    
+    if (replyTo) {
+      data.replyToId = replyTo.id;
+      data.replyToName = replyTo.name;
+      data.replyToContent = replyTo.content.substring(0, 100);
+    }
+    
+    sendMessageMutation.mutate(data);
+  };
+
+  const handleReply = (msg: TeamMessageWithSender) => {
+    setReplyTo({
+      id: msg.id,
+      name: msg.sender?.name || "Unknown",
+      content: msg.content,
+    });
   };
 
   return (
@@ -126,7 +195,7 @@ export function InternalChatFloating() {
                 messages.map((msg: TeamMessageWithSender) => (
                   <div
                     key={msg.id}
-                    className={`flex gap-2 ${
+                    className={`group flex gap-2 ${
                       msg.senderId === user?.id ? "flex-row-reverse" : "flex-row"
                     }`}
                     data-testid={`message-team-${msg.id}`}
@@ -147,6 +216,15 @@ export function InternalChatFloating() {
                       <span className="text-xs text-muted-foreground mb-1">
                         {msg.sender?.name || "Unknown"}
                       </span>
+                      {msg.replyToId && msg.replyToName && (
+                        <div className="flex items-start gap-1 text-xs text-muted-foreground mb-1 bg-muted/50 rounded px-2 py-1">
+                          <CornerDownRight className="h-3 w-3 mt-0.5 shrink-0" />
+                          <div className="min-w-0">
+                            <span className="font-medium">{msg.replyToName}</span>
+                            <p className="truncate">{msg.replyToContent}</p>
+                          </div>
+                        </div>
+                      )}
                       <div
                         className={`rounded-lg px-3 py-2 ${
                           msg.senderId === user?.id
@@ -156,9 +234,20 @@ export function InternalChatFloating() {
                       >
                         <p className="text-sm break-words">{msg.content}</p>
                       </div>
-                      <span className="text-xs text-muted-foreground mt-1">
-                        {format(new Date(msg.createdAt), "HH:mm")}
-                      </span>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-xs text-muted-foreground">
+                          {format(new Date(msg.createdAt), "HH:mm")}
+                        </span>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={() => handleReply(msg)}
+                          data-testid={`button-reply-${msg.id}`}
+                        >
+                          <Reply className="h-3 w-3" />
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 ))
@@ -166,6 +255,24 @@ export function InternalChatFloating() {
               <div ref={messagesEndRef} />
             </div>
           </ScrollArea>
+          
+          {replyTo && (
+            <div className="px-2 py-1 border-t bg-muted/30 flex items-center gap-2">
+              <CornerDownRight className="h-3 w-3 text-muted-foreground shrink-0" />
+              <div className="flex-1 min-w-0 text-xs">
+                <span className="font-medium">Replying to {replyTo.name}</span>
+                <p className="text-muted-foreground truncate">{replyTo.content}</p>
+              </div>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-5 w-5 shrink-0"
+                onClick={() => setReplyTo(null)}
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            </div>
+          )}
           
           <div className="p-2 border-t flex gap-2">
             <Input
@@ -176,6 +283,16 @@ export function InternalChatFloating() {
               className="flex-1"
               data-testid="input-team-message"
             />
+            {recognitionRef.current && (
+              <Button
+                size="icon"
+                variant={isListening ? "destructive" : "outline"}
+                onClick={toggleVoiceInput}
+                data-testid="button-voice-input"
+              >
+                {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+              </Button>
+            )}
             <Button
               size="icon"
               onClick={handleSendMessage}
@@ -208,4 +325,11 @@ export function InternalChatFloating() {
       </Button>
     </div>
   );
+}
+
+declare global {
+  interface Window {
+    SpeechRecognition: typeof SpeechRecognition;
+    webkitSpeechRecognition: typeof SpeechRecognition;
+  }
 }
