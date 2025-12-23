@@ -9,7 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { format } from "date-fns";
 import { io, Socket } from "socket.io-client";
-import { MessageCircle, X, Send, Users, Loader2, Mic, Square, Reply, CornerDownRight, Play, Pause } from "lucide-react";
+import { MessageCircle, X, Send, Users, Loader2, Mic, Square, Reply, CornerDownRight, Play, Pause, Paperclip, Image, FileText } from "lucide-react";
 import type { TeamMessageWithSender } from "@shared/schema";
 
 interface ReplyInfo {
@@ -146,6 +146,8 @@ export function InternalChatFloating() {
   const [audioPreviewUrl, setAudioPreviewUrl] = useState<string | null>(null);
   const [isPlayingPreview, setIsPlayingPreview] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -154,6 +156,7 @@ export function InternalChatFloating() {
   const previewAudioRef = useRef<HTMLAudioElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const isMountedRef = useRef(true);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const canUseTeamChat = user && (user.role === "staff" || user.role === "admin");
 
@@ -318,6 +321,86 @@ export function InternalChatFloating() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const maxSize = 10 * 1024 * 1024;
+    if (file.size > maxSize) {
+      toast({
+        title: "File too large",
+        description: "Please select a file smaller than 10MB.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setPendingFile(file);
+    if (file.type.startsWith('image/')) {
+      setFilePreviewUrl(URL.createObjectURL(file));
+    }
+  };
+
+  const clearPendingFile = () => {
+    if (filePreviewUrl) {
+      URL.revokeObjectURL(filePreviewUrl);
+    }
+    setPendingFile(null);
+    setFilePreviewUrl(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const uploadFileAndSend = async () => {
+    if (!pendingFile || isUploading) return;
+
+    setIsUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', pendingFile);
+
+      const response = await fetch('/api/upload/cloudinary', {
+        method: 'POST',
+        headers: getAuthHeader(),
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to upload file');
+      }
+
+      const data = await response.json();
+      
+      const msgData: { content: string; attachmentUrl: string; attachmentType: string; replyToId?: string; replyToName?: string; replyToContent?: string } = {
+        content: messageInput.trim() || pendingFile.name,
+        attachmentUrl: data.url,
+        attachmentType: pendingFile.type,
+      };
+      
+      if (replyTo) {
+        msgData.replyToId = replyTo.id;
+        msgData.replyToName = replyTo.name;
+        msgData.replyToContent = replyTo.content.substring(0, 100);
+      }
+      
+      sendMessageMutation.mutate(msgData);
+      clearPendingFile();
+      setMessageInput("");
+      setReplyTo(null);
+    } catch (error) {
+      console.error('File upload failed:', error);
+      toast({
+        title: "Upload failed",
+        description: "Could not send file. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   useEffect(() => {
     isMountedRef.current = true;
     return () => {
@@ -480,6 +563,32 @@ export function InternalChatFloating() {
                             isOwn={msg.senderId === user?.id}
                             messageId={msg.id}
                           />
+                        ) : msg.attachmentType?.startsWith('image/') && msg.attachmentUrl ? (
+                          <div className="space-y-1">
+                            <img 
+                              src={msg.attachmentUrl} 
+                              alt="Attachment" 
+                              className="max-w-full max-h-48 rounded-md cursor-pointer"
+                              onClick={() => window.open(msg.attachmentUrl!, '_blank')}
+                              data-testid={`image-attachment-${msg.id}`}
+                            />
+                            {msg.content && msg.content !== msg.attachmentUrl && (
+                              <p className="text-sm break-words">{msg.content}</p>
+                            )}
+                          </div>
+                        ) : msg.attachmentUrl ? (
+                          <div className="space-y-1">
+                            <a 
+                              href={msg.attachmentUrl} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-2 text-sm underline"
+                              data-testid={`file-attachment-${msg.id}`}
+                            >
+                              <FileText className="h-4 w-4 shrink-0" />
+                              <span className="truncate">{msg.content}</span>
+                            </a>
+                          </div>
                         ) : (
                           <p className="text-sm break-words">{msg.content}</p>
                         )}
@@ -576,13 +685,69 @@ export function InternalChatFloating() {
               </Button>
             </div>
           )}
+
+          {pendingFile && !isRecording && !audioPreviewUrl && (
+            <div className="px-2 py-1 border-t bg-accent/30 flex items-center gap-2">
+              {filePreviewUrl ? (
+                <img src={filePreviewUrl} alt="Preview" className="h-10 w-10 object-cover rounded" />
+              ) : (
+                <div className="h-10 w-10 bg-muted rounded flex items-center justify-center">
+                  <FileText className="h-5 w-5 text-muted-foreground" />
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium truncate">{pendingFile.name}</p>
+                <p className="text-xs text-muted-foreground">
+                  {(pendingFile.size / 1024).toFixed(1)} KB
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={clearPendingFile}
+                className="h-6 w-6 shrink-0"
+                data-testid="button-clear-file"
+              >
+                <X className="h-3 w-3" />
+              </Button>
+              <Button
+                type="button"
+                size="icon"
+                className="h-6 w-6 shrink-0"
+                onClick={uploadFileAndSend}
+                disabled={isUploading}
+                data-testid="button-send-file"
+              >
+                {isUploading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
+              </Button>
+            </div>
+          )}
+          
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileSelect}
+            className="hidden"
+            accept="image/*,.pdf,.doc,.docx,.txt,.xls,.xlsx"
+            data-testid="input-file-upload"
+          />
           
           <div className="p-2 border-t flex gap-2">
             <Button
               size="icon"
+              variant="outline"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploading || isRecording || !!audioPreviewUrl || !!pendingFile}
+              data-testid="button-attach-file"
+            >
+              <Paperclip className="h-4 w-4" />
+            </Button>
+            <Button
+              size="icon"
               variant={isRecording ? "destructive" : "outline"}
               onClick={isRecording ? stopRecording : startRecording}
-              disabled={isUploading || !!audioPreviewUrl}
+              disabled={isUploading || !!audioPreviewUrl || !!pendingFile}
               data-testid="button-record-voice"
             >
               {isRecording ? <Square className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
@@ -593,13 +758,13 @@ export function InternalChatFloating() {
               placeholder="Type a message..."
               onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSendMessage()}
               className="flex-1"
-              disabled={isRecording || !!audioPreviewUrl}
+              disabled={isRecording || !!audioPreviewUrl || !!pendingFile}
               data-testid="input-team-message"
             />
             <Button
               size="icon"
               onClick={handleSendMessage}
-              disabled={!messageInput.trim() || sendMessageMutation.isPending || isRecording || !!audioPreviewUrl}
+              disabled={!messageInput.trim() || sendMessageMutation.isPending || isRecording || !!audioPreviewUrl || !!pendingFile}
               data-testid="button-send-team-message"
             >
               {sendMessageMutation.isPending ? (
