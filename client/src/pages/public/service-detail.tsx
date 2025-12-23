@@ -199,6 +199,16 @@ export default function ServiceDetailPage() {
         
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-8">
+            {service.imageUrl && (
+              <div className="relative w-full h-64 md:h-80 rounded-lg overflow-hidden">
+                <img
+                  src={service.imageUrl}
+                  alt={service.name}
+                  className="w-full h-full object-cover"
+                  data-testid="image-service-detail"
+                />
+              </div>
+            )}
             <div>
               <div className="flex items-start justify-between gap-4 flex-wrap mb-4">
                 <h1 className="text-3xl md:text-4xl font-bold" data-testid="text-service-name">

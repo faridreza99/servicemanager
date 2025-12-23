@@ -144,7 +144,17 @@ export default function ServicesPage() {
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {data?.services.map((service) => (
-                <Card key={service.id} className="hover-elevate flex flex-col" data-testid={`card-service-${service.id}`}>
+                <Card key={service.id} className="hover-elevate flex flex-col overflow-hidden" data-testid={`card-service-${service.id}`}>
+                  {service.imageUrl && (
+                    <div className="relative h-40 w-full overflow-hidden">
+                      <img 
+                        src={service.imageUrl} 
+                        alt={service.name}
+                        className="h-full w-full object-cover"
+                        data-testid={`image-service-${service.id}`}
+                      />
+                    </div>
+                  )}
                   <CardHeader className="flex-1">
                     <div className="flex items-start justify-between gap-2 flex-wrap">
                       <CardTitle className="text-lg">{service.name}</CardTitle>
