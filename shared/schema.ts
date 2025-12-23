@@ -634,3 +634,97 @@ export type AuditAction =
 export type AuditLogWithActor = AuditLog & {
   actor?: User;
 };
+
+// Internal Chat System (Staff/Admin only)
+export const internalChatTypeEnum = pgEnum("internal_chat_type", ["direct", "group"]);
+
+export const internalChats = pgTable("internal_chats", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  type: internalChatTypeEnum("type").notNull().default("direct"),
+  title: text("title"),
+  createdById: varchar("created_by_id").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const internalChatsRelations = relations(internalChats, ({ one, many }) => ({
+  createdBy: one(users, {
+    fields: [internalChats.createdById],
+    references: [users.id],
+  }),
+  participants: many(internalChatParticipants),
+  messages: many(internalMessages),
+}));
+
+export const internalChatParticipants = pgTable("internal_chat_participants", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  chatId: varchar("chat_id").notNull().references(() => internalChats.id),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  lastReadAt: timestamp("last_read_at"),
+  joinedAt: timestamp("joined_at").notNull().defaultNow(),
+});
+
+export const internalChatParticipantsRelations = relations(internalChatParticipants, ({ one }) => ({
+  chat: one(internalChats, {
+    fields: [internalChatParticipants.chatId],
+    references: [internalChats.id],
+  }),
+  user: one(users, {
+    fields: [internalChatParticipants.userId],
+    references: [users.id],
+  }),
+}));
+
+export const internalMessages = pgTable("internal_messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  chatId: varchar("chat_id").notNull().references(() => internalChats.id),
+  senderId: varchar("sender_id").notNull().references(() => users.id),
+  content: text("content").notNull(),
+  attachmentUrl: text("attachment_url"),
+  attachmentType: text("attachment_type"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const internalMessagesRelations = relations(internalMessages, ({ one }) => ({
+  chat: one(internalChats, {
+    fields: [internalMessages.chatId],
+    references: [internalChats.id],
+  }),
+  sender: one(users, {
+    fields: [internalMessages.senderId],
+    references: [users.id],
+  }),
+}));
+
+export const insertInternalChatSchema = createInsertSchema(internalChats).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertInternalChatParticipantSchema = createInsertSchema(internalChatParticipants).omit({
+  id: true,
+  joinedAt: true,
+  lastReadAt: true,
+});
+
+export const insertInternalMessageSchema = createInsertSchema(internalMessages).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InternalChat = typeof internalChats.$inferSelect;
+export type InsertInternalChat = z.infer<typeof insertInternalChatSchema>;
+export type InternalChatParticipant = typeof internalChatParticipants.$inferSelect;
+export type InsertInternalChatParticipant = z.infer<typeof insertInternalChatParticipantSchema>;
+export type InternalMessage = typeof internalMessages.$inferSelect;
+export type InsertInternalMessage = z.infer<typeof insertInternalMessageSchema>;
+export type InternalChatType = "direct" | "group";
+
+export type InternalChatWithDetails = InternalChat & {
+  participants: (InternalChatParticipant & { user: User })[];
+  lastMessage?: InternalMessage & { sender: User };
+  unreadCount?: number;
+};
+
+export type InternalMessageWithSender = InternalMessage & {
+  sender: User;
+};
