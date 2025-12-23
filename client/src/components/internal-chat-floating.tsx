@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/lib/auth";
 import { apiRequest } from "@/lib/queryClient";
 import { format } from "date-fns";
@@ -128,6 +128,9 @@ export function InternalChatFloating() {
                     data-testid={`message-team-${msg.id}`}
                   >
                     <Avatar className="h-7 w-7 shrink-0">
+                      {msg.sender?.profilePhoto && (
+                        <AvatarImage src={msg.sender.profilePhoto} alt={msg.sender.name || "User"} />
+                      )}
                       <AvatarFallback className="text-xs">
                         {msg.sender?.name?.charAt(0).toUpperCase() || "?"}
                       </AvatarFallback>
