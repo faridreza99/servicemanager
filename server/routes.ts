@@ -77,7 +77,7 @@ export async function registerRoutes(
 
   io.on("connection", (socket) => {
     const user = socket.data.user;
-    console.log(`User ${user.email} connected`);
+    console.log(`User ${user.email} connected, joining room user-${user.userId}`);
 
     socket.join(`user-${user.userId}`);
 
@@ -2352,6 +2352,7 @@ export async function registerRoutes(
       if (chat) {
         chat.participants.forEach(p => {
           if (p.userId !== req.user!.userId) {
+            console.log(`Emitting internal-message to user-${p.userId}`);
             io.to(`user-${p.userId}`).emit("internal-message", messageWithSender);
           }
         });
