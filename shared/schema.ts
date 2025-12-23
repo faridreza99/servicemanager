@@ -728,3 +728,31 @@ export type InternalChatWithDetails = InternalChat & {
 export type InternalMessageWithSender = InternalMessage & {
   sender: User;
 };
+
+// Team Chat - Broadcast messages visible to all staff and admin
+export const teamMessages = pgTable("team_messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  senderId: varchar("sender_id").notNull().references(() => users.id),
+  content: text("content").notNull(),
+  attachmentUrl: varchar("attachment_url"),
+  attachmentType: varchar("attachment_type"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const teamMessagesRelations = relations(teamMessages, ({ one }) => ({
+  sender: one(users, {
+    fields: [teamMessages.senderId],
+    references: [users.id],
+  }),
+}));
+
+export const insertTeamMessageSchema = createInsertSchema(teamMessages).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type TeamMessage = typeof teamMessages.$inferSelect;
+export type InsertTeamMessage = z.infer<typeof insertTeamMessageSchema>;
+export type TeamMessageWithSender = TeamMessage & {
+  sender: User;
+};
