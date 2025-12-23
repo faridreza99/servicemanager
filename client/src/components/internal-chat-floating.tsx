@@ -45,6 +45,7 @@ export function InternalChatFloating() {
     if (!token || !canUseTeamChat) return;
 
     const socket = io({
+      path: "/ws",
       auth: { token },
     });
     socketRef.current = socket;
@@ -53,17 +54,20 @@ export function InternalChatFloating() {
       console.log("Connected to team chat socket");
     });
 
+    socket.on("connect_error", (error) => {
+      console.error("Socket connection error:", error.message);
+    });
+
     socket.on("team-chat:new-message", (message: TeamMessageWithSender) => {
-      if (message.senderId !== user?.id) {
-        queryClient.setQueryData<TeamMessageWithSender[]>(
-          ["/api/team-chat/messages"],
-          (old = []) => {
-            const exists = old.some(m => m.id === message.id);
-            if (exists) return old;
-            return [...old, message];
-          }
-        );
-      }
+      console.log("Received team chat message:", message.id);
+      queryClient.setQueryData<TeamMessageWithSender[]>(
+        ["/api/team-chat/messages"],
+        (old = []) => {
+          const exists = old.some(m => m.id === message.id);
+          if (exists) return old;
+          return [...old, message];
+        }
+      );
     });
 
     return () => {
