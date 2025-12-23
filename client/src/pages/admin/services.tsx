@@ -3,7 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Search, Briefcase, Loader2, Upload, X, Image as ImageIcon } from "lucide-react";
+import { Plus, Search, Briefcase, Loader2, Upload, X, Image as ImageIcon, Filter } from "lucide-react";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { ServiceCard } from "@/components/service-card";
 import { Pagination, usePagination } from "@/components/pagination";
@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -42,6 +43,7 @@ type ServiceForm = z.infer<typeof serviceSchema>;
 export default function AdminServicesPage() {
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<ServiceCategory | "all">("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [editingService, setEditingService] = useState<Service | null>(null);
@@ -55,7 +57,7 @@ export default function AdminServicesPage() {
     defaultValues: { name: "", description: "", category: "other", customCategory: "", imageUrl: "" },
   });
 
-  const selectedCategory = form.watch("category");
+  const formSelectedCategory = form.watch("category");
 
   const { data: services = [], isLoading } = useQuery<Service[]>({
     queryKey: ["/api/admin/services"],
@@ -198,23 +200,33 @@ export default function AdminServicesPage() {
     }
   };
 
-  const filteredServices = services.filter(
-    (s) =>
-      s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.description.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredServices = services.filter((s) => {
+    const matchesSearch = searchQuery
+      ? s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        s.description.toLowerCase().includes(searchQuery.toLowerCase())
+      : true;
+    const matchesCategory = selectedCategory === "all" || s.category === selectedCategory;
+    return matchesSearch && matchesCategory;
+  });
+
+  const clearFilters = () => {
+    setSearchQuery("");
+    setSelectedCategory("all");
+  };
+
+  const hasFilters = searchQuery || selectedCategory !== "all";
 
   const pagination = usePagination(filteredServices, 9);
 
   useEffect(() => {
     pagination.onPageChange(1);
-  }, [searchQuery]);
+  }, [searchQuery, selectedCategory]);
 
   return (
     <DashboardLayout title="Service Management">
       <div className="max-w-7xl mx-auto p-6 space-y-6">
         <div className="flex flex-wrap items-center gap-4">
-          <div className="relative flex-1 max-w-md">
+          <div className="relative flex-1 min-w-[200px] max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search services..."
@@ -224,11 +236,49 @@ export default function AdminServicesPage() {
               data-testid="input-search-services"
             />
           </div>
+          
+          <Select
+            value={selectedCategory}
+            onValueChange={(value) => setSelectedCategory(value as ServiceCategory | "all")}
+          >
+            <SelectTrigger className="w-[180px]" data-testid="select-category">
+              <Filter className="h-4 w-4 mr-2" />
+              <SelectValue placeholder="Category" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Categories</SelectItem>
+              {SERVICE_CATEGORIES.map((cat) => (
+                <SelectItem key={cat.value} value={cat.value}>
+                  {cat.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {hasFilters && (
+            <Button variant="ghost" size="sm" onClick={clearFilters} data-testid="button-clear-filters">
+              <X className="h-4 w-4 mr-1" />
+              Clear
+            </Button>
+          )}
+          
           <Button onClick={handleCreate} data-testid="button-create-service">
             <Plus className="mr-2 h-4 w-4" />
             Add Service
           </Button>
         </div>
+
+        {selectedCategory !== "all" && (
+          <div className="flex gap-2">
+            <Badge variant="secondary" className="gap-1">
+              {SERVICE_CATEGORIES.find((c) => c.value === selectedCategory)?.label}
+              <X
+                className="h-3 w-3 cursor-pointer"
+                onClick={() => setSelectedCategory("all")}
+              />
+            </Badge>
+          </div>
+        )}
 
         {isLoading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -246,9 +296,16 @@ export default function AdminServicesPage() {
           <div className="text-center py-16 text-muted-foreground">
             <Briefcase className="h-16 w-16 mx-auto mb-4 opacity-50" />
             <p className="text-lg font-medium">
-              {searchQuery ? "No services found" : "No services yet"}
+              {hasFilters ? "No services found" : "No services yet"}
             </p>
-            <p className="text-sm">Create your first service to get started</p>
+            <p className="text-sm">
+              {hasFilters ? "Try different filters or search terms" : "Create your first service to get started"}
+            </p>
+            {hasFilters && (
+              <Button variant="outline" className="mt-4" onClick={clearFilters}>
+                Clear Filters
+              </Button>
+            )}
           </div>
         ) : (
           <>
@@ -332,7 +389,7 @@ export default function AdminServicesPage() {
                     </FormItem>
                   )}
                 />
-                {selectedCategory === "other" && (
+                {formSelectedCategory === "other" && (
                   <FormField
                     control={form.control}
                     name="customCategory"
