@@ -20,6 +20,7 @@ import {
   internalChats,
   internalChatParticipants,
   internalMessages,
+  teamMessages,
   type User,
   type InsertUser,
   type Service,
@@ -73,6 +74,9 @@ import {
   type InsertInternalChatParticipant,
   type InternalMessage,
   type InsertInternalMessage,
+  type TeamMessage,
+  type InsertTeamMessage,
+  type TeamMessageWithSender,
   type InternalChatWithDetails,
   type InternalMessageWithSender,
 } from "@shared/schema";
@@ -190,6 +194,10 @@ export interface IStorage {
   createInternalMessage(data: InsertInternalMessage): Promise<InternalMessage>;
   markInternalChatRead(chatId: string, userId: string): Promise<void>;
   getStaffAndAdminUsers(): Promise<User[]>;
+  
+  // Team Chat (broadcast to all staff/admin)
+  getTeamMessages(limit?: number): Promise<TeamMessageWithSender[]>;
+  createTeamMessage(data: InsertTeamMessage): Promise<TeamMessage>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1330,6 +1338,25 @@ export class DatabaseStorage implements IStorage {
         eq(users.approved, true)
       ))
       .orderBy(users.name);
+  }
+
+  async getTeamMessages(limit: number = 100): Promise<TeamMessageWithSender[]> {
+    const messagesData = await db
+      .select()
+      .from(teamMessages)
+      .leftJoin(users, eq(teamMessages.senderId, users.id))
+      .orderBy(teamMessages.createdAt)
+      .limit(limit);
+
+    return messagesData.map(m => ({
+      ...m.team_messages,
+      sender: m.users!,
+    }));
+  }
+
+  async createTeamMessage(data: InsertTeamMessage): Promise<TeamMessage> {
+    const [message] = await db.insert(teamMessages).values(data).returning();
+    return message;
   }
 }
 
