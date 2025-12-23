@@ -769,6 +769,7 @@ export class DatabaseStorage implements IStorage {
         name: services.name,
         description: services.description,
         category: services.category,
+        imageUrl: services.imageUrl,
         isActive: services.isActive,
         createdAt: services.createdAt,
         updatedAt: services.updatedAt,
@@ -778,7 +779,7 @@ export class DatabaseStorage implements IStorage {
       .from(services)
       .leftJoin(reviews, eq(services.id, reviews.serviceId))
       .where(and(...conditions))
-      .groupBy(services.id, services.name, services.description, services.category, services.isActive, services.createdAt, services.updatedAt)
+      .groupBy(services.id, services.name, services.description, services.category, services.imageUrl, services.isActive, services.createdAt, services.updatedAt)
       .orderBy(services.name)
       .limit(limit || 1000)
       .offset(offset || 0);
@@ -821,6 +822,7 @@ export class DatabaseStorage implements IStorage {
         name: services.name,
         description: services.description,
         category: services.category,
+        imageUrl: services.imageUrl,
         isActive: services.isActive,
         createdAt: services.createdAt,
         updatedAt: services.updatedAt,
@@ -830,7 +832,7 @@ export class DatabaseStorage implements IStorage {
       .from(services)
       .leftJoin(reviews, eq(services.id, reviews.serviceId))
       .where(eq(services.isActive, true))
-      .groupBy(services.id, services.name, services.description, services.category, services.isActive, services.createdAt, services.updatedAt)
+      .groupBy(services.id, services.name, services.description, services.category, services.imageUrl, services.isActive, services.createdAt, services.updatedAt)
       .orderBy(sql`COALESCE(AVG(CASE WHEN reviews.is_published = true THEN reviews.rating END), 0) DESC`)
       .limit(limit);
     
