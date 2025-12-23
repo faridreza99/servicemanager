@@ -17,6 +17,9 @@ import {
   attendance,
   leaveRequests,
   auditLogs,
+  internalChats,
+  internalChatParticipants,
+  internalMessages,
   type User,
   type InsertUser,
   type Service,
@@ -64,6 +67,14 @@ import {
   type InsertAuditLog,
   type AuditLogWithActor,
   type AuditAction,
+  type InternalChat,
+  type InsertInternalChat,
+  type InternalChatParticipant,
+  type InsertInternalChatParticipant,
+  type InternalMessage,
+  type InsertInternalMessage,
+  type InternalChatWithDetails,
+  type InternalMessageWithSender,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -168,6 +179,17 @@ export interface IStorage {
   // Broadcast notification methods
   getBroadcastNotifications(userId: string): Promise<Notification[]>;
   getUnreadBroadcasts(userId: string): Promise<Notification[]>;
+
+  // Internal chat methods (staff/admin only)
+  getInternalChats(userId: string): Promise<InternalChatWithDetails[]>;
+  getInternalChat(chatId: string): Promise<InternalChatWithDetails | undefined>;
+  createInternalChat(data: InsertInternalChat, participantIds: string[]): Promise<InternalChat>;
+  getInternalChatByParticipants(participantIds: string[]): Promise<InternalChat | undefined>;
+  isInternalChatParticipant(chatId: string, userId: string): Promise<boolean>;
+  getInternalMessages(chatId: string): Promise<InternalMessageWithSender[]>;
+  createInternalMessage(data: InsertInternalMessage): Promise<InternalMessage>;
+  markInternalChatRead(chatId: string, userId: string): Promise<void>;
+  getStaffAndAdminUsers(): Promise<User[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1114,6 +1136,200 @@ export class DatabaseStorage implements IStorage {
         eq(notifications.read, false)
       ))
       .orderBy(desc(notifications.createdAt));
+  }
+
+  // Internal chat methods
+  async getInternalChats(userId: string): Promise<InternalChatWithDetails[]> {
+    const userChats = await db
+      .select({ chatId: internalChatParticipants.chatId })
+      .from(internalChatParticipants)
+      .where(eq(internalChatParticipants.userId, userId));
+
+    const chatIds = userChats.map(c => c.chatId);
+    if (chatIds.length === 0) return [];
+
+    const chatsData = await db
+      .select()
+      .from(internalChats)
+      .where(sql`${internalChats.id} IN ${chatIds}`)
+      .orderBy(desc(internalChats.createdAt));
+
+    const result: InternalChatWithDetails[] = [];
+    for (const chat of chatsData) {
+      const participantsData = await db
+        .select()
+        .from(internalChatParticipants)
+        .leftJoin(users, eq(internalChatParticipants.userId, users.id))
+        .where(eq(internalChatParticipants.chatId, chat.id));
+
+      const participants = participantsData.map(p => ({
+        ...p.internal_chat_participants,
+        user: p.users!,
+      }));
+
+      const [lastMessageData] = await db
+        .select()
+        .from(internalMessages)
+        .leftJoin(users, eq(internalMessages.senderId, users.id))
+        .where(eq(internalMessages.chatId, chat.id))
+        .orderBy(desc(internalMessages.createdAt))
+        .limit(1);
+
+      const currentParticipant = participants.find(p => p.userId === userId);
+      const unreadCountResult = await db
+        .select({ count: count() })
+        .from(internalMessages)
+        .where(and(
+          eq(internalMessages.chatId, chat.id),
+          currentParticipant?.lastReadAt
+            ? sql`${internalMessages.createdAt} > ${currentParticipant.lastReadAt}`
+            : sql`1=1`
+        ));
+
+      result.push({
+        ...chat,
+        participants,
+        lastMessage: lastMessageData ? {
+          ...lastMessageData.internal_messages,
+          sender: lastMessageData.users!,
+        } : undefined,
+        unreadCount: unreadCountResult[0]?.count || 0,
+      });
+    }
+
+    return result.sort((a, b) => {
+      const aTime = a.lastMessage?.createdAt || a.createdAt;
+      const bTime = b.lastMessage?.createdAt || b.createdAt;
+      return new Date(bTime).getTime() - new Date(aTime).getTime();
+    });
+  }
+
+  async getInternalChat(chatId: string): Promise<InternalChatWithDetails | undefined> {
+    const [chat] = await db.select().from(internalChats).where(eq(internalChats.id, chatId));
+    if (!chat) return undefined;
+
+    const participantsData = await db
+      .select()
+      .from(internalChatParticipants)
+      .leftJoin(users, eq(internalChatParticipants.userId, users.id))
+      .where(eq(internalChatParticipants.chatId, chat.id));
+
+    const participants = participantsData.map(p => ({
+      ...p.internal_chat_participants,
+      user: p.users!,
+    }));
+
+    const [lastMessageData] = await db
+      .select()
+      .from(internalMessages)
+      .leftJoin(users, eq(internalMessages.senderId, users.id))
+      .where(eq(internalMessages.chatId, chat.id))
+      .orderBy(desc(internalMessages.createdAt))
+      .limit(1);
+
+    return {
+      ...chat,
+      participants,
+      lastMessage: lastMessageData ? {
+        ...lastMessageData.internal_messages,
+        sender: lastMessageData.users!,
+      } : undefined,
+    };
+  }
+
+  async createInternalChat(data: InsertInternalChat, participantIds: string[]): Promise<InternalChat> {
+    const [chat] = await db.insert(internalChats).values(data).returning();
+    
+    for (const participantId of participantIds) {
+      await db.insert(internalChatParticipants).values({
+        chatId: chat.id,
+        userId: participantId,
+      });
+    }
+    
+    return chat;
+  }
+
+  async getInternalChatByParticipants(participantIds: string[]): Promise<InternalChat | undefined> {
+    if (participantIds.length !== 2) return undefined;
+
+    const chatsWithBothParticipants = await db.execute(sql`
+      SELECT ic.* FROM internal_chats ic
+      WHERE ic.type = 'direct'
+      AND (
+        SELECT COUNT(*) FROM internal_chat_participants icp 
+        WHERE icp.chat_id = ic.id 
+        AND icp.user_id IN (${participantIds[0]}, ${participantIds[1]})
+      ) = 2
+      AND (
+        SELECT COUNT(*) FROM internal_chat_participants icp 
+        WHERE icp.chat_id = ic.id
+      ) = 2
+      LIMIT 1
+    `);
+
+    if (chatsWithBothParticipants.rows.length > 0) {
+      const row = chatsWithBothParticipants.rows[0] as any;
+      return {
+        id: row.id,
+        type: row.type,
+        title: row.title,
+        createdById: row.created_by_id,
+        createdAt: row.created_at,
+      };
+    }
+    return undefined;
+  }
+
+  async isInternalChatParticipant(chatId: string, userId: string): Promise<boolean> {
+    const [participant] = await db
+      .select()
+      .from(internalChatParticipants)
+      .where(and(
+        eq(internalChatParticipants.chatId, chatId),
+        eq(internalChatParticipants.userId, userId)
+      ));
+    return !!participant;
+  }
+
+  async getInternalMessages(chatId: string): Promise<InternalMessageWithSender[]> {
+    const messagesData = await db
+      .select()
+      .from(internalMessages)
+      .leftJoin(users, eq(internalMessages.senderId, users.id))
+      .where(eq(internalMessages.chatId, chatId))
+      .orderBy(internalMessages.createdAt);
+
+    return messagesData.map(m => ({
+      ...m.internal_messages,
+      sender: m.users!,
+    }));
+  }
+
+  async createInternalMessage(data: InsertInternalMessage): Promise<InternalMessage> {
+    const [message] = await db.insert(internalMessages).values(data).returning();
+    return message;
+  }
+
+  async markInternalChatRead(chatId: string, userId: string): Promise<void> {
+    await db
+      .update(internalChatParticipants)
+      .set({ lastReadAt: new Date() })
+      .where(and(
+        eq(internalChatParticipants.chatId, chatId),
+        eq(internalChatParticipants.userId, userId)
+      ));
+  }
+
+  async getStaffAndAdminUsers(): Promise<User[]> {
+    return db
+      .select()
+      .from(users)
+      .where(and(
+        or(eq(users.role, "admin"), eq(users.role, "staff")),
+        eq(users.approved, true)
+      ))
+      .orderBy(users.name);
   }
 }
 
