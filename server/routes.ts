@@ -80,6 +80,12 @@ export async function registerRoutes(
     console.log(`User ${user.email} connected, joining room user-${user.userId}`);
 
     socket.join(`user-${user.userId}`);
+    
+    // Auto-join staff and admin to team-chat room for broadcast messages
+    if (user.role === "staff" || user.role === "admin") {
+      socket.join("team-chat");
+      console.log(`User ${user.email} joined team-chat room`);
+    }
 
     socket.on("join", (room: string) => {
       socket.join(room);
