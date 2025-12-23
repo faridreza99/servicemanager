@@ -2229,5 +2229,151 @@ export async function registerRoutes(
     }
   });
 
+  // Internal chat routes (staff and admin only)
+  const requireStaffOrAdmin = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    if (!req.user || (req.user.role !== "staff" && req.user.role !== "admin")) {
+      return res.status(403).json({ message: "Staff or admin access required" });
+    }
+    next();
+  };
+
+  // Get all internal chats for current user
+  app.get("/api/internal-chats", authMiddleware, requireStaffOrAdmin, async (req: AuthenticatedRequest, res) => {
+    try {
+      const chats = await storage.getInternalChats(req.user!.userId);
+      res.json(chats);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Get staff and admin users (for starting new chats)
+  app.get("/api/internal-chats/users", authMiddleware, requireStaffOrAdmin, async (req: AuthenticatedRequest, res) => {
+    try {
+      const users = await storage.getStaffAndAdminUsers();
+      res.json(users.filter(u => u.id !== req.user!.userId));
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Create or get existing direct chat with another user
+  app.post("/api/internal-chats", authMiddleware, requireStaffOrAdmin, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { participantId } = req.body;
+      if (!participantId) {
+        return res.status(400).json({ message: "Participant ID is required" });
+      }
+
+      const participant = await storage.getUser(participantId);
+      if (!participant || (participant.role !== "staff" && participant.role !== "admin")) {
+        return res.status(400).json({ message: "Invalid participant" });
+      }
+
+      const participantIds = [req.user!.userId, participantId].sort();
+      
+      const existingChat = await storage.getInternalChatByParticipants(participantIds);
+      if (existingChat) {
+        const chatDetails = await storage.getInternalChat(existingChat.id);
+        return res.json(chatDetails);
+      }
+
+      const chat = await storage.createInternalChat(
+        { type: "direct", createdById: req.user!.userId },
+        participantIds
+      );
+      const chatDetails = await storage.getInternalChat(chat.id);
+      
+      io.to(`user-${participantId}`).emit("internal-chat-created", chatDetails);
+      
+      res.status(201).json(chatDetails);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Get messages for a chat
+  app.get("/api/internal-chats/:chatId/messages", authMiddleware, requireStaffOrAdmin, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { chatId } = req.params;
+      
+      const isParticipant = await storage.isInternalChatParticipant(chatId, req.user!.userId);
+      if (!isParticipant) {
+        return res.status(403).json({ message: "Not a participant of this chat" });
+      }
+
+      const messages = await storage.getInternalMessages(chatId);
+      await storage.markInternalChatRead(chatId, req.user!.userId);
+      
+      res.json(messages);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Send message in a chat
+  app.post("/api/internal-chats/:chatId/messages", authMiddleware, requireStaffOrAdmin, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { chatId } = req.params;
+      const { content } = req.body;
+      
+      if (!content?.trim()) {
+        return res.status(400).json({ message: "Message content is required" });
+      }
+
+      const isParticipant = await storage.isInternalChatParticipant(chatId, req.user!.userId);
+      if (!isParticipant) {
+        return res.status(403).json({ message: "Not a participant of this chat" });
+      }
+
+      const message = await storage.createInternalMessage({
+        chatId,
+        senderId: req.user!.userId,
+        content: content.trim(),
+      });
+
+      const sender = await storage.getUser(req.user!.userId);
+      const messageWithSender = { ...message, sender: sender! };
+
+      const chat = await storage.getInternalChat(chatId);
+      if (chat) {
+        chat.participants.forEach(p => {
+          if (p.userId !== req.user!.userId) {
+            io.to(`user-${p.userId}`).emit("internal-message", messageWithSender);
+          }
+        });
+      }
+
+      await storage.markInternalChatRead(chatId, req.user!.userId);
+
+      res.status(201).json(messageWithSender);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Mark chat as read
+  app.post("/api/internal-chats/:chatId/read", authMiddleware, requireStaffOrAdmin, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { chatId } = req.params;
+      
+      const isParticipant = await storage.isInternalChatParticipant(chatId, req.user!.userId);
+      if (!isParticipant) {
+        return res.status(403).json({ message: "Not a participant of this chat" });
+      }
+
+      await storage.markInternalChatRead(chatId, req.user!.userId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   return httpServer;
 }
