@@ -2258,7 +2258,9 @@ export async function registerRoutes(
   app.get("/api/internal-chats/users", authMiddleware, requireStaffOrAdmin, async (req: AuthenticatedRequest, res) => {
     try {
       const users = await storage.getStaffAndAdminUsers();
-      res.json(users.filter(u => u.id !== req.user!.userId));
+      const filtered = users.filter(u => u.id !== req.user!.userId);
+      console.log(`Internal chat users: Found ${users.length} staff/admin users, returning ${filtered.length} (excluding current user ${req.user!.userId})`);
+      res.json(filtered);
     } catch (error) {
       console.error(error);
       res.status(500).json({ message: "Internal server error" });
