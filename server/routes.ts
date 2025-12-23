@@ -2246,7 +2246,9 @@ export async function registerRoutes(
   // Get all internal chats for current user
   app.get("/api/internal-chats", authMiddleware, requireStaffOrAdmin, async (req: AuthenticatedRequest, res) => {
     try {
+      console.log(`Fetching internal chats for user ${req.user!.userId} (${req.user!.email})`);
       const chats = await storage.getInternalChats(req.user!.userId);
+      console.log(`Found ${chats.length} internal chats for user ${req.user!.email}`);
       res.json(chats);
     } catch (error) {
       console.error(error);
