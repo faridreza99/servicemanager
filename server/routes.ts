@@ -2387,5 +2387,47 @@ export async function registerRoutes(
     }
   });
 
+  // ===============================
+  // Team Chat Routes (Broadcast to all staff/admin)
+  // ===============================
+
+  // Get all team chat messages
+  app.get("/api/team-chat/messages", authMiddleware, requireStaffOrAdmin, async (req: AuthenticatedRequest, res) => {
+    try {
+      const messages = await storage.getTeamMessages(200);
+      res.json(messages);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Send a team chat message (broadcast to all staff/admin)
+  app.post("/api/team-chat/messages", authMiddleware, requireStaffOrAdmin, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { content } = req.body;
+      
+      if (!content?.trim()) {
+        return res.status(400).json({ message: "Message content is required" });
+      }
+
+      const message = await storage.createTeamMessage({
+        senderId: req.user!.userId,
+        content: content.trim(),
+      });
+
+      const sender = await storage.getUser(req.user!.userId);
+      const messageWithSender = { ...message, sender: sender! };
+
+      // Broadcast to all connected staff/admin via team-chat room
+      io.to("team-chat").emit("team-chat:new-message", messageWithSender);
+
+      res.status(201).json(messageWithSender);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   return httpServer;
 }
