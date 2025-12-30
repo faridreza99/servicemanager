@@ -205,14 +205,16 @@ export default function AdminBookingDetailPage() {
   return (
     <DashboardLayout title="Booking Details">
       <div className="flex flex-col h-[calc(100vh-4rem)]">
-        <div className="flex items-center justify-between gap-4 p-4 border-b flex-wrap">
-          <Button variant="ghost" onClick={() => setLocation("/admin/bookings")} data-testid="button-back">
-            <ArrowLeft className="mr-2 h-4 w-4" />Back to Bookings
+        <div className="flex items-center justify-between gap-2 p-2 lg:p-4 border-b">
+          <Button variant="ghost" size="sm" onClick={() => setLocation("/admin/bookings")} data-testid="button-back" className="lg:size-default">
+            <ArrowLeft className="h-4 w-4 lg:mr-2" />
+            <span className="hidden lg:inline">Back to Bookings</span>
           </Button>
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-2">
             {booking?.chat && (
-              <Button variant="outline" onClick={handleDownloadTranscript} data-testid="button-download-transcript">
-                <Download className="mr-2 h-4 w-4" />Transcript
+              <Button variant="outline" size="sm" onClick={handleDownloadTranscript} data-testid="button-download-transcript">
+                <Download className="h-4 w-4 lg:mr-2" />
+                <span className="hidden lg:inline">Transcript</span>
               </Button>
             )}
           </div>

@@ -415,10 +415,10 @@ export function ChatInterface({
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between gap-4 p-4 border-b">
-        <div>
-          <h3 className="font-semibold">Chat</h3>
-          <p className="text-sm text-muted-foreground">{messages.length} messages</p>
+      <div className="flex items-center justify-between gap-2 p-2 lg:p-4 border-b">
+        <div className="flex items-center gap-2">
+          <h3 className="font-semibold text-sm lg:text-base">Chat</h3>
+          <span className="text-xs lg:text-sm text-muted-foreground">({messages.length})</span>
         </div>
         {isOpen && canClose && onClose && (
           <Button 
@@ -427,14 +427,14 @@ export function ChatInterface({
             onClick={onClose}
             data-testid="button-approve-work"
           >
-            <CheckCircle className="mr-2 h-4 w-4" />
-            Approve Work
+            <CheckCircle className="h-4 w-4 lg:mr-2" />
+            <span className="hidden lg:inline">Approve Work</span>
           </Button>
         )}
         {!isOpen && (
-          <Badge variant="secondary" className="flex items-center gap-1">
+          <Badge variant="secondary" className="flex items-center gap-1 text-xs">
             <CheckCircle className="h-3 w-3" />
-            Work Approved
+            <span className="hidden sm:inline">Approved</span>
           </Badge>
         )}
       </div>
@@ -558,9 +558,9 @@ export function ChatInterface({
       </ScrollArea>
 
       {isOpen ? (
-      <div className="p-4 border-t space-y-3">
+      <div className="p-2 lg:p-4 border-t space-y-2 lg:space-y-3">
         {(canSendPrivate || canSendQuotation) && (
-          <div className="flex flex-wrap gap-4">
+          <div className="flex flex-wrap gap-2 lg:gap-4">
             {canSendPrivate && (
               <div className="flex items-center space-x-2">
                 <Checkbox
@@ -569,9 +569,10 @@ export function ChatInterface({
                   onCheckedChange={(checked) => setIsPrivate(!!checked)}
                   data-testid="checkbox-private"
                 />
-                <Label htmlFor="private" className="text-sm flex items-center gap-1">
+                <Label htmlFor="private" className="text-xs lg:text-sm flex items-center gap-1">
                   <Lock className="h-3 w-3" />
-                  Private (Admin only)
+                  <span className="hidden sm:inline">Private (Admin only)</span>
+                  <span className="sm:hidden">Private</span>
                 </Label>
               </div>
             )}
@@ -583,7 +584,7 @@ export function ChatInterface({
                   onCheckedChange={(checked) => setIsQuotation(!!checked)}
                   data-testid="checkbox-quotation"
                 />
-                <Label htmlFor="quotation" className="text-sm flex items-center gap-1">
+                <Label htmlFor="quotation" className="text-xs lg:text-sm flex items-center gap-1">
                   <DollarSign className="h-3 w-3" />
                   Quotation
                 </Label>
@@ -677,7 +678,7 @@ export function ChatInterface({
           </div>
         )}
 
-        <div className="flex gap-2">
+        <div className="flex gap-1 lg:gap-2">
           <input
             ref={fileInputRef}
             type="file"
@@ -711,16 +712,17 @@ export function ChatInterface({
             {isRecording ? <Square className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
           </Button>
           <Input
-            placeholder={isQuotation ? "Add a description (optional)" : "Type a message..."}
+            placeholder={isQuotation ? "Description..." : "Type a message..."}
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             onKeyDown={handleKeyDown}
             disabled={isSending || isUploading}
-            className="flex-1"
+            className="flex-1 text-sm"
             data-testid="input-message"
           />
           <Button 
             onClick={handleSend} 
+            size="icon"
             disabled={isSending || isUploading || (!message.trim() && !attachmentUrl && (!isQuotation || !quotationAmount))}
             data-testid="button-send-message"
           >
