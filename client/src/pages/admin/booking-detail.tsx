@@ -51,6 +51,7 @@ export default function AdminBookingDetailPage() {
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [selectedStaffIds, setSelectedStaffIds] = useState<string[]>([]);
   const [staffSelectorOpen, setStaffSelectorOpen] = useState(false);
+  const [approveDialogOpen, setApproveDialogOpen] = useState(false);
 
   const { data: booking, isLoading: bookingLoading } = useQuery<BookingWithDetails>({
     queryKey: ["/api/bookings", id],
@@ -133,6 +134,7 @@ export default function AdminBookingDetailPage() {
     mutationFn: async () => apiRequest("POST", `/api/chats/${chatId}/close`, {}),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/bookings", id] });
+      setApproveDialogOpen(false);
       toast({ title: "Work approved", description: "The booking has been marked as complete." });
     },
     onError: (error: Error) => toast({ title: "Failed to close chat", description: error.message, variant: "destructive" }),
@@ -333,7 +335,7 @@ export default function AdminBookingDetailPage() {
                 <ChatInterface 
                   messages={messages} 
                   onSendMessage={handleSendMessage} 
-                  onClose={() => closeChatMutation.mutate()} 
+                  onClose={() => setApproveDialogOpen(true)} 
                   isOpen={booking.chat.isOpen} 
                   isSending={sendMessageMutation.isPending} 
                   canSendPrivate 
@@ -429,6 +431,29 @@ export default function AdminBookingDetailPage() {
                 data-testid="button-confirm-assign"
               >
                 {assignMutation.isPending ? "Assigning..." : "Assign"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={approveDialogOpen} onOpenChange={setApproveDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Approve Work</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to approve this work? This will mark the booking as completed and close the chat.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setApproveDialogOpen(false)} data-testid="button-cancel-approve">
+                Cancel
+              </Button>
+              <Button 
+                onClick={() => closeChatMutation.mutate()} 
+                disabled={closeChatMutation.isPending}
+                data-testid="button-confirm-approve"
+              >
+                {closeChatMutation.isPending ? "Approving..." : "Yes, Approve"}
               </Button>
             </DialogFooter>
           </DialogContent>
