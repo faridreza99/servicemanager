@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { ArrowLeft, Download, User, Calendar, Clock, DollarSign, X, ChevronsUpDown, UserPlus } from "lucide-react";
+import { ArrowLeft, Download, User, Calendar, Clock, DollarSign, X, ChevronsUpDown, UserPlus, ChevronDown } from "lucide-react";
 import { io, Socket } from "socket.io-client";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { ChatInterface } from "@/components/chat-interface";
@@ -13,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useToast } from "@/hooks/use-toast";
 import { getAuthHeader } from "@/lib/auth";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -52,6 +53,7 @@ export default function AdminBookingDetailPage() {
   const [selectedStaffIds, setSelectedStaffIds] = useState<string[]>([]);
   const [staffSelectorOpen, setStaffSelectorOpen] = useState(false);
   const [approveDialogOpen, setApproveDialogOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   const { data: booking, isLoading: bookingLoading } = useQuery<BookingWithDetails>({
     queryKey: ["/api/bookings", id],
@@ -233,104 +235,203 @@ export default function AdminBookingDetailPage() {
           </div>
         ) : (
           <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
-            <div className="lg:w-80 border-b lg:border-b-0 lg:border-r p-4 overflow-y-auto">
-              <Card>
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between gap-2 flex-wrap">
-                    <CardTitle className="text-lg">{booking.service.name}</CardTitle>
+            <div className="lg:w-80 border-b lg:border-b-0 lg:border-r lg:p-4 lg:overflow-y-auto">
+              <div className="hidden lg:block">
+                <Card>
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <CardTitle className="text-lg">{booking.service.name}</CardTitle>
+                      <Badge variant={getStatusBadgeVariant(booking.status as BookingStatus)}>
+                        {getStatusLabel(booking.status)}
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-10 w-10">
+                        {booking.customer.profilePhoto && (
+                          <AvatarImage src={booking.customer.profilePhoto} alt={booking.customer.name} />
+                        )}
+                        <AvatarFallback>{getInitials(booking.customer.name)}</AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="text-sm font-medium">{booking.customer.name}</p>
+                        <p className="text-xs text-muted-foreground">{booking.customer.email}</p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 text-sm">
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <Calendar className="h-4 w-4" />
+                        <span>Created {formatDistanceToNow(new Date(booking.createdAt), { addSuffix: true })}</span>
+                      </div>
+                      {booking.service.description && (
+                        <div className="flex items-start gap-2 text-muted-foreground">
+                          <DollarSign className="h-4 w-4 mt-0.5" />
+                          <span className="text-xs">{booking.service.description}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="pt-2 border-t">
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <p className="text-sm font-medium">Assigned Staff</p>
+                        <Button 
+                          size="sm" 
+                          variant="ghost" 
+                          onClick={() => setAssignDialogOpen(true)}
+                          data-testid="button-add-staff"
+                        >
+                          <UserPlus className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      
+                      {assignedStaffLoading ? (
+                        <Skeleton className="h-10 w-full" />
+                      ) : assignedStaff.length > 0 ? (
+                        <div className="space-y-2">
+                          {assignedStaff.map((staff) => (
+                            <div key={staff.id} className="flex items-center justify-between gap-2" data-testid={`assigned-staff-${staff.id}`}>
+                              <div className="flex items-center gap-2">
+                                <Avatar className="h-8 w-8">
+                                  {staff.profilePhoto && (
+                                    <AvatarImage src={staff.profilePhoto} alt={staff.name} />
+                                  )}
+                                  <AvatarFallback className="text-xs">{getInitials(staff.name)}</AvatarFallback>
+                                </Avatar>
+                                <div>
+                                  <p className="text-sm">{staff.name}</p>
+                                  <Badge variant="secondary" className="text-xs">
+                                    {getStatusLabel(staff.taskStatus)}
+                                  </Badge>
+                                </div>
+                              </div>
+                              <Button 
+                                size="icon" 
+                                variant="ghost"
+                                onClick={() => removeStaffMutation.mutate({ staffId: staff.id })}
+                                disabled={removeStaffMutation.isPending}
+                                data-testid={`button-remove-staff-${staff.id}`}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          onClick={() => setAssignDialogOpen(true)}
+                          data-testid="button-assign-staff"
+                        >
+                          <User className="mr-2 h-4 w-4" />Assign Staff
+                        </Button>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <Collapsible open={detailsOpen} onOpenChange={setDetailsOpen} className="lg:hidden border-b">
+                <CollapsibleTrigger className="flex items-center justify-between w-full p-4 text-left">
+                  <div className="flex items-center gap-3">
+                    <span className="font-semibold">{booking.service.name}</span>
                     <Badge variant={getStatusBadgeVariant(booking.status as BookingStatus)}>
                       {getStatusLabel(booking.status)}
                     </Badge>
                   </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center gap-3">
-                    <Avatar className="h-10 w-10">
-                      {booking.customer.profilePhoto && (
-                        <AvatarImage src={booking.customer.profilePhoto} alt={booking.customer.name} />
+                  <ChevronDown className={`h-5 w-5 transition-transform ${detailsOpen ? 'rotate-180' : ''}`} />
+                </CollapsibleTrigger>
+                <CollapsibleContent className="px-4 pb-4">
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-10 w-10">
+                        {booking.customer.profilePhoto && (
+                          <AvatarImage src={booking.customer.profilePhoto} alt={booking.customer.name} />
+                        )}
+                        <AvatarFallback>{getInitials(booking.customer.name)}</AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="text-sm font-medium">{booking.customer.name}</p>
+                        <p className="text-xs text-muted-foreground">{booking.customer.email}</p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 text-sm">
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <Calendar className="h-4 w-4" />
+                        <span>Created {formatDistanceToNow(new Date(booking.createdAt), { addSuffix: true })}</span>
+                      </div>
+                      {booking.service.description && (
+                        <div className="flex items-start gap-2 text-muted-foreground">
+                          <DollarSign className="h-4 w-4 mt-0.5" />
+                          <span className="text-xs">{booking.service.description}</span>
+                        </div>
                       )}
-                      <AvatarFallback>{getInitials(booking.customer.name)}</AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <p className="text-sm font-medium">{booking.customer.name}</p>
-                      <p className="text-xs text-muted-foreground">{booking.customer.email}</p>
                     </div>
-                  </div>
 
-                  <div className="space-y-2 text-sm">
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <Calendar className="h-4 w-4" />
-                      <span>Created {formatDistanceToNow(new Date(booking.createdAt), { addSuffix: true })}</span>
-                    </div>
-                    {booking.service.description && (
-                      <div className="flex items-start gap-2 text-muted-foreground">
-                        <DollarSign className="h-4 w-4 mt-0.5" />
-                        <span className="text-xs">{booking.service.description}</span>
+                    <div className="pt-2 border-t">
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <p className="text-sm font-medium">Assigned Staff</p>
+                        <Button 
+                          size="sm" 
+                          variant="ghost" 
+                          onClick={() => setAssignDialogOpen(true)}
+                          data-testid="button-add-staff-mobile"
+                        >
+                          <UserPlus className="h-4 w-4" />
+                        </Button>
                       </div>
-                    )}
-                  </div>
-
-                  <div className="pt-2 border-t">
-                    <div className="flex items-center justify-between gap-2 mb-2">
-                      <p className="text-sm font-medium">Assigned Staff</p>
-                      <Button 
-                        size="sm" 
-                        variant="ghost" 
-                        onClick={() => setAssignDialogOpen(true)}
-                        data-testid="button-add-staff"
-                      >
-                        <UserPlus className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    
-                    {assignedStaffLoading ? (
-                      <Skeleton className="h-10 w-full" />
-                    ) : assignedStaff.length > 0 ? (
-                      <div className="space-y-2">
-                        {assignedStaff.map((staff) => (
-                          <div key={staff.id} className="flex items-center justify-between gap-2" data-testid={`assigned-staff-${staff.id}`}>
-                            <div className="flex items-center gap-2">
-                              <Avatar className="h-8 w-8">
-                                {staff.profilePhoto && (
-                                  <AvatarImage src={staff.profilePhoto} alt={staff.name} />
-                                )}
-                                <AvatarFallback className="text-xs">{getInitials(staff.name)}</AvatarFallback>
-                              </Avatar>
-                              <div>
-                                <p className="text-sm">{staff.name}</p>
-                                <Badge variant="secondary" className="text-xs">
-                                  {getStatusLabel(staff.taskStatus)}
-                                </Badge>
+                      
+                      {assignedStaffLoading ? (
+                        <Skeleton className="h-10 w-full" />
+                      ) : assignedStaff.length > 0 ? (
+                        <div className="space-y-2">
+                          {assignedStaff.map((staff) => (
+                            <div key={staff.id} className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2">
+                                <Avatar className="h-8 w-8">
+                                  {staff.profilePhoto && (
+                                    <AvatarImage src={staff.profilePhoto} alt={staff.name} />
+                                  )}
+                                  <AvatarFallback className="text-xs">{getInitials(staff.name)}</AvatarFallback>
+                                </Avatar>
+                                <div>
+                                  <p className="text-sm">{staff.name}</p>
+                                  <Badge variant="secondary" className="text-xs">
+                                    {getStatusLabel(staff.taskStatus)}
+                                  </Badge>
+                                </div>
                               </div>
+                              <Button 
+                                size="icon" 
+                                variant="ghost"
+                                onClick={() => removeStaffMutation.mutate({ staffId: staff.id })}
+                                disabled={removeStaffMutation.isPending}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
                             </div>
-                            <Button 
-                              size="icon" 
-                              variant="ghost"
-                              onClick={() => removeStaffMutation.mutate({ staffId: staff.id })}
-                              disabled={removeStaffMutation.isPending}
-                              data-testid={`button-remove-staff-${staff.id}`}
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <Button 
-                        size="sm" 
-                        variant="outline" 
-                        onClick={() => setAssignDialogOpen(true)}
-                        data-testid="button-assign-staff"
-                      >
-                        <User className="mr-2 h-4 w-4" />Assign Staff
-                      </Button>
-                    )}
+                          ))}
+                        </div>
+                      ) : (
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          onClick={() => setAssignDialogOpen(true)}
+                          data-testid="button-assign-staff-mobile"
+                        >
+                          <User className="mr-2 h-4 w-4" />Assign Staff
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                </CardContent>
-              </Card>
+                </CollapsibleContent>
+              </Collapsible>
             </div>
 
-            <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="flex-1 flex flex-col overflow-hidden min-h-0">
               {booking.chat ? (
                 <ChatInterface 
                   messages={messages} 
