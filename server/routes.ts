@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import type { Express, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { Server as SocketIOServer } from "socket.io";
 import { storage } from "./storage";
@@ -53,7 +53,7 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
   const requireApproval = createApprovalMiddleware((id) => storage.getUser(id));
-  
+
   const io = new SocketIOServer(httpServer, {
     path: "/ws",
     cors: {
@@ -80,7 +80,7 @@ export async function registerRoutes(
     console.log(`User ${user.email} connected, joining room user-${user.userId}`);
 
     socket.join(`user-${user.userId}`);
-    
+
     // Auto-join staff and admin to team-chat room for broadcast messages
     if (user.role === "staff" || user.role === "admin") {
       socket.join("team-chat");
@@ -107,7 +107,7 @@ export async function registerRoutes(
   app.post("/api/auth/register", async (req, res) => {
     try {
       const data = registerSchema.parse(req.body);
-      
+
       const existingUser = await storage.getUserByEmail(data.email);
       if (existingUser) {
         return res.status(400).json({ message: "Email already registered" });
@@ -115,7 +115,7 @@ export async function registerRoutes(
 
       const hashedPassword = await hashPassword(data.password);
       const isAdmin = data.role === "admin";
-      
+
       const user = await storage.createUser({
         email: data.email,
         password: hashedPassword,
@@ -159,7 +159,7 @@ export async function registerRoutes(
   app.post("/api/auth/login", async (req, res) => {
     try {
       const data = loginSchema.parse(req.body);
-      
+
       const user = await storage.getUserByEmail(data.email);
       if (!user) {
         return res.status(401).json({ message: "Invalid credentials" });
@@ -175,7 +175,7 @@ export async function registerRoutes(
       }
 
       const token = signToken(user);
-      
+
       // Create audit log for login
       try {
         await storage.createAuditLog({
@@ -189,7 +189,7 @@ export async function registerRoutes(
       } catch (e) {
         console.error("Failed to create audit log:", e);
       }
-      
+
       res.json({
         user: { ...user, password: undefined },
         token,
@@ -219,28 +219,28 @@ export async function registerRoutes(
   app.post("/api/auth/change-password", authMiddleware, async (req: AuthenticatedRequest, res) => {
     try {
       const { currentPassword, newPassword } = req.body;
-      
+
       if (!currentPassword || !newPassword) {
         return res.status(400).json({ message: "Current and new password are required" });
       }
-      
+
       if (newPassword.length < 6) {
         return res.status(400).json({ message: "Password must be at least 6 characters" });
       }
-      
+
       const user = await storage.getUser(req.user!.userId);
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
-      
+
       const validPassword = await comparePassword(currentPassword, user.password);
       if (!validPassword) {
         return res.status(401).json({ message: "Current password is incorrect" });
       }
-      
+
       const hashedPassword = await hashPassword(newPassword);
       await storage.updateUserPassword(user.id, hashedPassword);
-      
+
       res.json({ message: "Password changed successfully" });
     } catch (error) {
       console.error(error);
@@ -251,14 +251,14 @@ export async function registerRoutes(
   app.put("/api/profile", authMiddleware, async (req: AuthenticatedRequest, res) => {
     try {
       const data = updateProfileSchema.parse(req.body);
-      
+
       const updatedUser = await storage.updateUserProfile(req.user!.userId, data);
       if (!updatedUser) {
         return res.status(404).json({ message: "User not found" });
       }
-      
-      res.json({ 
-        user: { 
+
+      res.json({
+        user: {
           id: updatedUser.id,
           email: updatedUser.email,
           name: updatedUser.name,
@@ -267,7 +267,7 @@ export async function registerRoutes(
           role: updatedUser.role,
           approved: updatedUser.approved,
         },
-        message: "Profile updated successfully" 
+        message: "Profile updated successfully"
       });
     } catch (error) {
       console.error(error);
@@ -297,7 +297,7 @@ export async function registerRoutes(
     try {
       const category = req.query.category as ServiceCategory | undefined;
       const search = req.query.search as string | undefined;
-      
+
       if (category || search) {
         const services = await storage.getActiveServicesFiltered(category, search);
         res.json(services);
@@ -374,18 +374,18 @@ export async function registerRoutes(
   app.delete("/api/services/:id", authMiddleware, requireRole("admin"), async (req: AuthenticatedRequest, res) => {
     try {
       const { id } = req.params;
-      
+
       // Delete associated bookings and their related data first
       const bookings = await storage.getBookings();
       const serviceBookings = bookings.filter(b => b.serviceId === id);
-      
+
       for (const booking of serviceBookings) {
         // Delete tasks associated with the booking
         const tasks = await storage.getTasksByBooking(booking.id);
         for (const task of tasks) {
           await storage.deleteTask(task.id);
         }
-        
+
         // Delete chat and messages associated with the booking
         if (booking.chat) {
           const messages = await storage.getMessagesByChat(booking.chat.id);
@@ -394,11 +394,11 @@ export async function registerRoutes(
           }
           await storage.deleteChat(booking.chat.id);
         }
-        
+
         // Delete the booking itself
         await storage.deleteBooking(booking.id);
       }
-      
+
       const deleted = await storage.deleteService(id);
       if (!deleted) {
         return res.status(404).json({ message: "Service not found" });
@@ -414,7 +414,7 @@ export async function registerRoutes(
     try {
       const user = req.user!;
       let bookings;
-      
+
       if (user.role === "admin") {
         bookings = await storage.getBookings();
       } else if (user.role === "staff") {
@@ -422,7 +422,7 @@ export async function registerRoutes(
       } else {
         bookings = await storage.getBookingsByCustomer(user.userId);
       }
-      
+
       res.json(bookings);
     } catch (error) {
       console.error(error);
@@ -433,7 +433,7 @@ export async function registerRoutes(
   app.get("/api/bookings/export", authMiddleware, requireRole("admin"), async (req: AuthenticatedRequest, res) => {
     try {
       const bookings = await storage.getBookings();
-      
+
       const csvHeaders = [
         "Booking ID",
         "Customer Name",
@@ -446,7 +446,7 @@ export async function registerRoutes(
         "Assigned Staff",
         "Created Date"
       ];
-      
+
       const escapeCSV = (value: string): string => {
         const str = String(value);
         if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
@@ -467,12 +467,12 @@ export async function registerRoutes(
         booking.assignedStaff?.name || "",
         new Date(booking.createdAt).toISOString().split('T')[0]
       ]);
-      
+
       const csvContent = [
         csvHeaders.map(h => escapeCSV(h)).join(','),
         ...csvRows.map(row => row.map(cell => escapeCSV(String(cell))).join(','))
       ].join('\n');
-      
+
       const date = new Date().toISOString().split('T')[0];
       res.setHeader('Content-Type', 'text/csv');
       res.setHeader('Content-Disposition', `attachment; filename="bookings-export-${date}.csv"`);
@@ -490,7 +490,7 @@ export async function registerRoutes(
       if (!booking) {
         return res.status(404).json({ message: "Booking not found" });
       }
-      
+
       // Access control: customers can only see their own bookings, staff can only see assigned bookings
       if (user.role === "customer" && booking.customer.id !== user.userId) {
         return res.status(403).json({ message: "Access denied" });
@@ -498,13 +498,13 @@ export async function registerRoutes(
       if (user.role === "staff") {
         // Check if staff is primary assignee OR has any task for this booking
         const staffTasks = await storage.getTasksByBooking(req.params.id);
-        const isAssigned = booking.assignedStaff?.id === user.userId || 
-                           staffTasks.some(t => t.staffId === user.userId);
+        const isAssigned = booking.assignedStaff?.id === user.userId ||
+          staffTasks.some(t => t.staffId === user.userId);
         if (!isAssigned) {
           return res.status(403).json({ message: "Access denied" });
         }
       }
-      
+
       res.json(booking);
     } catch (error) {
       console.error(error);
@@ -518,7 +518,7 @@ export async function registerRoutes(
         ...req.body,
         customerId: req.user!.userId,
       });
-      
+
       const booking = await storage.createBooking(data);
       const chat = await storage.createChat({ bookingId: booking.id });
 
@@ -619,10 +619,10 @@ export async function registerRoutes(
   app.post("/api/bookings/:id/assign", authMiddleware, requireRole("admin"), async (req: AuthenticatedRequest, res) => {
     try {
       const data = assignBookingSchema.parse(req.body);
-      
+
       // Support both single staffId and array of staffIds
       const staffIdsToAssign = data.staffIds || (data.staffId ? [data.staffId] : []);
-      
+
       if (staffIdsToAssign.length === 0) {
         return res.status(400).json({ message: "Please select at least one staff member" });
       }
@@ -715,9 +715,9 @@ export async function registerRoutes(
       }
 
       // Find all tasks for this staff member in this booking
-      const tasks = await storage.getTasksByBooking(bookingId);
-      const tasksToDelete = tasks.filter(t => t.staffId === staffId);
-      
+      const allBookingTasks = await storage.getTasksByBooking(bookingId);
+      const tasksToDelete = allBookingTasks.filter(t => t.staffId === staffId);
+
       if (tasksToDelete.length === 0) {
         return res.status(404).json({ message: "Staff is not assigned to this booking" });
       }
@@ -729,9 +729,10 @@ export async function registerRoutes(
 
       // If this was the primary assigned staff, update to another assigned staff or clear
       if (booking.assignedStaff?.id === staffId) {
-        const remainingTasks = tasks.filter(t => t.staffId !== staffId);
+        const remainingTasks = allBookingTasks.filter(t => t.staffId !== staffId);
         if (remainingTasks.length > 0) {
-          await storage.assignBookingToStaff(bookingId, remainingTasks[0].staffId);
+          const nextStaffId = remainingTasks[0].staffId;
+          await storage.assignBookingToStaff(bookingId, nextStaffId);
         } else {
           await storage.assignBookingToStaff(bookingId, undefined);
         }
@@ -826,7 +827,7 @@ export async function registerRoutes(
     try {
       const { name, email, phone, role, approved, leaveDaysQuota } = req.body;
       const updates: { name?: string; email?: string; phone?: string; role?: string; approved?: boolean; leaveDaysQuota?: number } = {};
-      
+
       if (name !== undefined) updates.name = name;
       if (email !== undefined) updates.email = email;
       if (phone !== undefined) updates.phone = phone;
@@ -974,14 +975,14 @@ export async function registerRoutes(
       if (!chat) {
         return res.status(404).json({ message: "Chat not found" });
       }
-      
+
       // When work is approved (chat closed), update booking status to completed
       if (chat.bookingId) {
         await storage.updateBookingStatus(chat.bookingId, "completed");
       }
-      
+
       io.to(`chat:${req.params.id}`).emit("chat_closed", chat);
-      
+
       res.json(chat);
     } catch (error) {
       console.error(error);
@@ -1035,7 +1036,7 @@ export async function registerRoutes(
           const privateTag = msg.isPrivate ? ' [PRIVATE]' : '';
           const quotationTag = msg.isQuotation ? ` [QUOTATION: $${msg.quotationAmount}]` : '';
           const attachmentTag = msg.attachmentUrl ? ` [ATTACHMENT: ${msg.attachmentType || 'file'}]` : '';
-          
+
           transcript += `[${timestamp}] ${senderName}${privateTag}${quotationTag}${attachmentTag}\n`;
           transcript += `${msg.content}\n\n`;
         }
@@ -1058,13 +1059,13 @@ export async function registerRoutes(
     try {
       const user = req.user!;
       let tasks;
-      
+
       if (user.role === "admin") {
         tasks = await storage.getTasks();
       } else {
         tasks = await storage.getTasksByStaff(user.userId);
       }
-      
+
       res.json(tasks);
     } catch (error) {
       console.error(error);
@@ -1089,17 +1090,17 @@ export async function registerRoutes(
     try {
       // Validate request body once with proper schema
       const validatedData = createMultiTaskSchema.parse(req.body);
-      
+
       // Support both staffIds (array) and staffId (single) for backward compatibility
       const staffIdsToAssign: string[] = validatedData.staffIds && validatedData.staffIds.length > 0
-        ? validatedData.staffIds 
-        : validatedData.staffId 
-          ? [validatedData.staffId] 
+        ? validatedData.staffIds
+        : validatedData.staffId
+          ? [validatedData.staffId]
           : [];
 
       const createdTasks = [];
       const taskTitle = validatedData.title || validatedData.description.slice(0, 50);
-      
+
       for (const sid of staffIdsToAssign) {
         const taskData = {
           staffId: sid,
@@ -1108,7 +1109,7 @@ export async function registerRoutes(
           bookingId: validatedData.bookingId,
           attachments: validatedData.attachments,
         };
-        
+
         const parsedData = insertTaskSchema.parse(taskData);
         const task = await storage.createTask(parsedData);
         createdTasks.push(task);
@@ -1162,7 +1163,7 @@ export async function registerRoutes(
       if (!task) {
         return res.status(404).json({ message: "Task not found" });
       }
-      
+
       // When task is completed, check if ALL tasks for this booking are completed
       if (data.status === "completed" && task.bookingId) {
         const bookingTasks = await storage.getTasksByBooking(task.bookingId);
@@ -1171,7 +1172,7 @@ export async function registerRoutes(
           await storage.updateBookingStatus(task.bookingId, "completed");
         }
       }
-      
+
       res.json(task);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -1219,7 +1220,7 @@ export async function registerRoutes(
   app.post("/api/admin/notifications/broadcast", authMiddleware, requireRole("admin"), async (req: AuthenticatedRequest, res) => {
     try {
       const { title, content, attachments, targetRole } = req.body;
-      
+
       if (!title || !content) {
         return res.status(400).json({ message: "Title and content are required" });
       }
@@ -1248,7 +1249,7 @@ export async function registerRoutes(
 
       // Create notifications for all target users
       const notifications = await Promise.all(
-        targetUsers.map(user => 
+        targetUsers.map(user =>
           storage.createNotification({
             userId: user.id,
             type: "broadcast",
@@ -1273,10 +1274,10 @@ export async function registerRoutes(
         console.error("Failed to create audit log:", e);
       }
 
-      res.json({ 
-        success: true, 
+      res.json({
+        success: true,
         message: `Notification sent to ${notifications.length} users`,
-        count: notifications.length 
+        count: notifications.length
       });
     } catch (error) {
       console.error(error);
@@ -1352,14 +1353,14 @@ export async function registerRoutes(
   app.get("/api/admin/analytics/bookings", authMiddleware, requireRole("admin"), async (req: AuthenticatedRequest, res) => {
     try {
       const allBookings = await storage.getBookings();
-      
+
       const statusCounts: Record<string, number> = {};
       const categoryCounts: Record<string, number> = {};
       const monthlyTrends: Record<string, number> = {};
 
       for (const booking of allBookings) {
         statusCounts[booking.status] = (statusCounts[booking.status] || 0) + 1;
-        
+
         const category = booking.service?.category || "Uncategorized";
         categoryCounts[category] = (categoryCounts[category] || 0) + 1;
 
@@ -1518,7 +1519,7 @@ export async function registerRoutes(
   app.put("/api/admin/site-settings", authMiddleware, requireRole("admin"), async (req: AuthenticatedRequest, res) => {
     try {
       const { siteName, siteDescription, logoUrl, faviconUrl, metaTitle, metaDescription } = req.body;
-      
+
       const settingsToUpdate: { key: string; value: string | null }[] = [
         { key: "siteName", value: siteName ?? null },
         { key: "siteDescription", value: siteDescription ?? null },
@@ -1546,7 +1547,7 @@ export async function registerRoutes(
       const pageNum = Math.max(1, parseInt(page as string) || 1);
       const limitNum = Math.min(50, Math.max(1, parseInt(limit as string) || 12));
       const offset = (pageNum - 1) * limitNum;
-      
+
       const [paginatedServices, total] = await Promise.all([
         storage.getServicesWithRatings(
           category as ServiceCategory | undefined,
@@ -1559,9 +1560,9 @@ export async function registerRoutes(
           search as string | undefined
         ),
       ]);
-      
+
       const totalPages = Math.ceil(total / limitNum);
-      
+
       res.json({
         services: paginatedServices,
         pagination: {
@@ -1594,14 +1595,14 @@ export async function registerRoutes(
     try {
       const { id } = req.params;
       const service = await storage.getService(id);
-      
+
       if (!service || !service.isActive) {
         return res.status(404).json({ message: "Service not found" });
       }
-      
+
       const reviews = await storage.getPublicReviewsByService(id);
       const rating = await storage.getServiceRating(id);
-      
+
       res.json({
         ...service,
         avgRating: rating.avgRating,
@@ -1618,17 +1619,17 @@ export async function registerRoutes(
     try {
       const { id } = req.params;
       const service = await storage.getService(id);
-      
+
       if (!service) {
         return res.status(404).json({ message: "Service not found" });
       }
-      
+
       const hasCompleted = await storage.hasCompletedBooking(req.user!.userId, id);
-      
+
       if (!hasCompleted) {
         return res.status(403).json({ message: "You can only review services you have completed" });
       }
-      
+
       const reviewData = {
         serviceId: id,
         userId: req.user!.userId,
@@ -1636,7 +1637,7 @@ export async function registerRoutes(
         title: req.body.title || null,
         body: req.body.body || null,
       };
-      
+
       const review = await storage.createReview(reviewData);
       res.status(201).json(review);
     } catch (error) {
@@ -1657,7 +1658,7 @@ export async function registerRoutes(
     try {
       const data = contactFormSchema.parse(req.body);
       const contactMessage = await storage.createContactMessage(data);
-      
+
       const admins = await storage.getUsersByRole("admin");
       for (const admin of admins) {
         await storage.createNotification({
@@ -1667,8 +1668,8 @@ export async function registerRoutes(
           content: `${data.name} (${data.email}) sent a message: "${data.subject}"`,
         });
       }
-      
-      res.status(201).json({ 
+
+      res.status(201).json({
         message: "Thank you for your message. We'll get back to you soon.",
         id: contactMessage.id,
       });
@@ -1695,16 +1696,16 @@ export async function registerRoutes(
     try {
       const { id } = req.params;
       const { status } = req.body;
-      
+
       if (!["pending", "read", "replied", "closed"].includes(status)) {
         return res.status(400).json({ message: "Invalid status" });
       }
-      
+
       const message = await storage.updateContactMessageStatus(id, status);
       if (!message) {
         return res.status(404).json({ message: "Message not found" });
       }
-      
+
       res.json(message);
     } catch (error) {
       console.error(error);
@@ -1767,7 +1768,7 @@ export async function registerRoutes(
     try {
       const staffId = req.user!.userId;
       const today = new Date().toISOString().split('T')[0];
-      
+
       // Check if already clocked in today
       const existingAttendance = await storage.getTodayAttendance(staffId);
       if (existingAttendance) {
@@ -1775,9 +1776,9 @@ export async function registerRoutes(
           return res.status(400).json({ message: "Already clocked in today" });
         }
       }
-      
+
       const { latitude, longitude, address } = req.body;
-      
+
       const attendanceData = {
         staffId,
         date: today,
@@ -1787,7 +1788,7 @@ export async function registerRoutes(
         clockInAddress: address || null,
         status: "present" as const,
       };
-      
+
       const attendance = await storage.createAttendance(attendanceData);
       res.status(201).json(attendance);
     } catch (error) {
@@ -1800,26 +1801,26 @@ export async function registerRoutes(
   app.post("/api/attendance/clock-out", authMiddleware, requireApproval, requireRole("staff"), async (req: AuthenticatedRequest, res) => {
     try {
       const staffId = req.user!.userId;
-      
+
       // Get today's attendance record
       const existingAttendance = await storage.getTodayAttendance(staffId);
       if (!existingAttendance) {
         return res.status(400).json({ message: "No clock-in record found for today" });
       }
-      
+
       if (existingAttendance.clockOutTime) {
         return res.status(400).json({ message: "Already clocked out today" });
       }
-      
+
       const { latitude, longitude, address } = req.body;
-      
+
       const updated = await storage.updateAttendance(existingAttendance.id, {
         clockOutTime: new Date(),
         clockOutLatitude: latitude || null,
         clockOutLongitude: longitude || null,
         clockOutAddress: address || null,
       });
-      
+
       res.json(updated);
     } catch (error) {
       console.error(error);
@@ -2004,17 +2005,17 @@ export async function registerRoutes(
     try {
       const staffId = req.user!.userId;
       const data = insertLeaveRequestSchema.parse(req.body);
-      
+
       // Validate dates
       const start = new Date(data.startDate);
       const end = new Date(data.endDate);
       if (start > end) {
         return res.status(400).json({ message: "End date must be after start date" });
       }
-      
+
       // Calculate requested leave days
       const requestedDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-      
+
       // Check leave quota (only for non-unpaid leave)
       if (data.leaveType !== "unpaid") {
         const staff = await storage.getUser(staffId);
@@ -2028,7 +2029,7 @@ export async function registerRoutes(
           }
         }
       }
-      
+
       const leaveRequest = await storage.createLeaveRequest({
         staffId,
         leaveType: data.leaveType,
@@ -2036,7 +2037,7 @@ export async function registerRoutes(
         endDate: data.endDate,
         reason: data.reason || null,
       });
-      
+
       // Notify admins
       const admins = await storage.getUsersByRole("admin");
       const staff = await storage.getUser(staffId);
@@ -2048,7 +2049,7 @@ export async function registerRoutes(
           content: `${staff?.name || "A staff member"} has requested ${data.leaveType} leave from ${data.startDate} to ${data.endDate}`,
         });
       }
-      
+
       res.status(201).json(leaveRequest);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -2087,25 +2088,25 @@ export async function registerRoutes(
     try {
       const { id } = req.params;
       const { status, adminNotes } = req.body;
-      
+
       if (!["approved", "rejected"].includes(status)) {
         return res.status(400).json({ message: "Status must be 'approved' or 'rejected'" });
       }
-      
+
       const leaveRequest = await storage.getLeaveRequest(id);
       if (!leaveRequest) {
         return res.status(404).json({ message: "Leave request not found" });
       }
-      
+
       if (leaveRequest.status !== "pending") {
         return res.status(400).json({ message: "Can only update pending leave requests" });
       }
-      
+
       // Calculate number of leave days
       const startDate = new Date(leaveRequest.startDate);
       const endDate = new Date(leaveRequest.endDate);
       const leaveDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-      
+
       // If approved, deduct from leave quota
       if (status === "approved") {
         const staff = await storage.getUser(leaveRequest.staffId);
@@ -2114,14 +2115,14 @@ export async function registerRoutes(
           await storage.updateUserLeaveQuota(leaveRequest.staffId, newUsed);
         }
       }
-      
+
       const updated = await storage.updateLeaveRequestStatus(
         id,
         status,
         req.user!.userId,
         adminNotes
       );
-      
+
       // Notify staff member
       await storage.createNotification({
         userId: leaveRequest.staffId,
@@ -2129,7 +2130,7 @@ export async function registerRoutes(
         title: `Leave Request ${status === "approved" ? "Approved" : "Rejected"}`,
         content: `Your ${leaveRequest.leaveType} leave request from ${leaveRequest.startDate} to ${leaveRequest.endDate} has been ${status}${adminNotes ? `. Note: ${adminNotes}` : ""}`,
       });
-      
+
       res.json(updated);
     } catch (error) {
       console.error(error);
@@ -2181,12 +2182,12 @@ export async function registerRoutes(
   app.get("/api/admin/audit-logs", authMiddleware, requireRole("admin"), async (req: AuthenticatedRequest, res) => {
     try {
       const { action, actorRole, startDate, endDate, limit = "50", offset = "0" } = req.query;
-      
+
       const filters: any = {
         limit: parseInt(limit as string),
         offset: parseInt(offset as string),
       };
-      
+
       if (action && action !== "all") filters.action = action;
       if (actorRole && actorRole !== "all") filters.actorRole = actorRole;
       if (startDate) filters.startDate = startDate;
@@ -2215,7 +2216,7 @@ export async function registerRoutes(
   app.get("/api/staff/dashboard", authMiddleware, requireRole("staff"), async (req: AuthenticatedRequest, res) => {
     try {
       const staffId = req.user!.userId;
-      
+
       const [tasks, todayAttendance, leaveRequests, broadcasts, user] = await Promise.all([
         storage.getTasksByStaff(staffId),
         storage.getTodayAttendance(staffId),
@@ -2250,7 +2251,7 @@ export async function registerRoutes(
   };
 
   // Get all internal chats for current user
-  app.get("/api/internal-chats", authMiddleware, requireStaffOrAdmin, async (req: AuthenticatedRequest, res) => {
+  app.get("/api/internal-chats", authMiddleware, requireStaffOrAdmin, async (req: AuthenticatedRequest, res: Response) => {
     try {
       console.log(`Fetching internal chats for user ${req.user!.userId} (${req.user!.email})`);
       const chats = await storage.getInternalChats(req.user!.userId);
@@ -2263,7 +2264,7 @@ export async function registerRoutes(
   });
 
   // Get staff and admin users (for starting new chats)
-  app.get("/api/internal-chats/users", authMiddleware, requireStaffOrAdmin, async (req: AuthenticatedRequest, res) => {
+  app.get("/api/internal-chats/users", authMiddleware, requireStaffOrAdmin, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const users = await storage.getStaffAndAdminUsers();
       const filtered = users.filter(u => u.id !== req.user!.userId);
@@ -2276,7 +2277,7 @@ export async function registerRoutes(
   });
 
   // Create or get existing direct chat with another user
-  app.post("/api/internal-chats", authMiddleware, requireStaffOrAdmin, async (req: AuthenticatedRequest, res) => {
+  app.post("/api/internal-chats", authMiddleware, requireStaffOrAdmin, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const { participantId } = req.body;
       if (!participantId) {
@@ -2290,7 +2291,7 @@ export async function registerRoutes(
 
       const currentUserId = req.user!.userId;
       const participantIds = [currentUserId, participantId].sort();
-      
+
       const existingChat = await storage.getInternalChatByParticipants(participantIds);
       if (existingChat) {
         const chatDetails = await storage.getInternalChat(existingChat.id);
@@ -2302,9 +2303,9 @@ export async function registerRoutes(
         participantIds
       );
       const chatDetails = await storage.getInternalChat(chat.id);
-      
+
       io.to(`user-${participantId}`).emit("internal-chat-created", chatDetails);
-      
+
       res.status(201).json(chatDetails);
     } catch (error) {
       console.error(error);
@@ -2313,10 +2314,10 @@ export async function registerRoutes(
   });
 
   // Get messages for a chat
-  app.get("/api/internal-chats/:chatId/messages", authMiddleware, requireStaffOrAdmin, async (req: AuthenticatedRequest, res) => {
+  app.get("/api/internal-chats/:chatId/messages", authMiddleware, requireStaffOrAdmin, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const { chatId } = req.params;
-      
+
       const isParticipant = await storage.isInternalChatParticipant(chatId, req.user!.userId);
       if (!isParticipant) {
         return res.status(403).json({ message: "Not a participant of this chat" });
@@ -2324,7 +2325,7 @@ export async function registerRoutes(
 
       const messages = await storage.getInternalMessages(chatId);
       await storage.markInternalChatRead(chatId, req.user!.userId);
-      
+
       res.json(messages);
     } catch (error) {
       console.error(error);
@@ -2333,11 +2334,11 @@ export async function registerRoutes(
   });
 
   // Send message in a chat
-  app.post("/api/internal-chats/:chatId/messages", authMiddleware, requireStaffOrAdmin, async (req: AuthenticatedRequest, res) => {
+  app.post("/api/internal-chats/:chatId/messages", authMiddleware, requireStaffOrAdmin, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const { chatId } = req.params;
       const { content } = req.body;
-      
+
       if (!content?.trim()) {
         return res.status(400).json({ message: "Message content is required" });
       }
@@ -2376,10 +2377,10 @@ export async function registerRoutes(
   });
 
   // Mark chat as read
-  app.post("/api/internal-chats/:chatId/read", authMiddleware, requireStaffOrAdmin, async (req: AuthenticatedRequest, res) => {
+  app.post("/api/internal-chats/:chatId/read", authMiddleware, requireStaffOrAdmin, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const { chatId } = req.params;
-      
+
       const isParticipant = await storage.isInternalChatParticipant(chatId, req.user!.userId);
       if (!isParticipant) {
         return res.status(403).json({ message: "Not a participant of this chat" });
@@ -2398,7 +2399,7 @@ export async function registerRoutes(
   // ===============================
 
   // Get all team chat messages
-  app.get("/api/team-chat/messages", authMiddleware, requireStaffOrAdmin, async (req: AuthenticatedRequest, res) => {
+  app.get("/api/team-chat/messages", authMiddleware, requireStaffOrAdmin, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const messages = await storage.getTeamMessages(200);
       res.json(messages);
@@ -2409,10 +2410,10 @@ export async function registerRoutes(
   });
 
   // Send a team chat message (broadcast to all staff/admin)
-  app.post("/api/team-chat/messages", authMiddleware, requireStaffOrAdmin, async (req: AuthenticatedRequest, res) => {
+  app.post("/api/team-chat/messages", authMiddleware, requireStaffOrAdmin, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const { content, replyToId, replyToName, replyToContent, attachmentUrl, attachmentType } = req.body;
-      
+
       if (!content?.trim()) {
         return res.status(400).json({ message: "Message content is required" });
       }

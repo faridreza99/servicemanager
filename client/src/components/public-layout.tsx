@@ -24,18 +24,17 @@ const navLinks = [
 
 function NavLinks({ onClick }: { onClick?: () => void }) {
   const [location] = useLocation();
-  
+
   return (
     <>
       {navLinks.map((link) => (
         <Link key={link.href} href={link.href}>
           <span
             onClick={onClick}
-            className={`text-sm font-medium transition-colors cursor-pointer ${
-              location === link.href
-                ? "text-foreground"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
+            className={`text-sm font-medium transition-colors cursor-pointer ${location === link.href
+              ? "text-foreground"
+              : "text-muted-foreground hover:text-foreground"
+              }`}
             data-testid={`link-nav-${link.label.toLowerCase()}`}
           >
             {link.label}
@@ -49,21 +48,21 @@ function NavLinks({ onClick }: { onClick?: () => void }) {
 function UserMenu() {
   const { user, logout } = useAuth();
   const [, setLocation] = useLocation();
-  
+
   if (!user) return null;
-  
+
   const dashboardPath = user.role === "admin" ? "/admin" : user.role === "staff" ? "/staff" : "/dashboard";
-  const initials = user.name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
-  
+  const initials = user.name?.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2) || user.email?.substring(0, 2).toUpperCase() || "U";
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="gap-2" data-testid="button-user-menu">
           <Avatar className="h-7 w-7">
-            <AvatarImage src={user.profilePhoto || undefined} alt={user.name} />
+            <AvatarImage src={user.profilePhoto || undefined} alt={user.name || user.email} />
             <AvatarFallback className="text-xs">{initials}</AvatarFallback>
           </Avatar>
-          <span className="hidden md:inline text-sm">{user.name}</span>
+          <span className="hidden md:inline text-sm">{user.name || user.email}</span>
           <ChevronDown className="h-4 w-4" />
         </Button>
       </DropdownMenuTrigger>
@@ -86,7 +85,7 @@ function Header() {
   const { user, isLoading } = useAuth();
   const { settings } = useSiteSettings();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  
+
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container mx-auto px-4 md:px-6">
@@ -101,14 +100,14 @@ function Header() {
               <span className="font-bold text-lg hidden sm:inline">{settings.siteName}</span>
             </div>
           </Link>
-          
+
           <nav className="hidden md:flex items-center gap-6">
             <NavLinks />
           </nav>
-          
+
           <div className="flex items-center gap-2">
             <ThemeToggle />
-            
+
             {!isLoading && (
               <>
                 {user ? (
@@ -125,7 +124,7 @@ function Header() {
                 )}
               </>
             )}
-            
+
             <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
               <SheetTrigger asChild className="md:hidden">
                 <Button variant="ghost" size="icon" data-testid="button-mobile-menu">
@@ -135,7 +134,7 @@ function Header() {
               <SheetContent side="right" className="w-72">
                 <nav className="flex flex-col gap-4 mt-8">
                   <NavLinks onClick={() => setMobileMenuOpen(false)} />
-                  
+
                   {!isLoading && !user && (
                     <div className="flex flex-col gap-2 mt-4 pt-4 border-t">
                       <Link href="/login">
@@ -163,7 +162,7 @@ function Header() {
 function Footer() {
   const { settings } = useSiteSettings();
   const currentYear = new Date().getFullYear();
-  
+
   return (
     <footer className="border-t bg-muted/30">
       <div className="container mx-auto px-4 md:px-6 py-12">
@@ -183,7 +182,7 @@ function Footer() {
               {settings.siteDescription}
             </p>
           </div>
-          
+
           <div>
             <h4 className="font-semibold mb-4">Quick Links</h4>
             <nav className="flex flex-col gap-2">
@@ -196,7 +195,7 @@ function Footer() {
               ))}
             </nav>
           </div>
-          
+
           <div>
             <h4 className="font-semibold mb-4">Account</h4>
             <nav className="flex flex-col gap-2">
@@ -213,7 +212,7 @@ function Footer() {
             </nav>
           </div>
         </div>
-        
+
         <div className="border-t mt-8 pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
           <p className="text-sm text-muted-foreground">
             {currentYear} {settings.siteName}. All rights reserved.

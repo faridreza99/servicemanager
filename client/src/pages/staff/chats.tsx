@@ -28,9 +28,9 @@ export default function StaffChatsPage() {
     },
   });
 
-  const tasksWithChats = tasks.filter((t) => t.booking.chat);
-  const openChats = tasksWithChats.filter((t) => t.booking.chat?.isOpen);
-  const closedChats = tasksWithChats.filter((t) => !t.booking.chat?.isOpen);
+  const tasksWithChats = tasks.filter((t) => t.booking?.chat);
+  const openChats = tasksWithChats.filter((t) => t.booking?.chat?.isOpen);
+  const closedChats = tasksWithChats.filter((t) => !t.booking?.chat?.isOpen);
 
   const openChatsPagination = usePagination(openChats, 10);
   const closedChatsPagination = usePagination(closedChats, 10);
@@ -64,12 +64,12 @@ export default function StaffChatsPage() {
             <>
               <div className="space-y-4">
                 {openChatsPagination.paginatedItems.map((task) => (
-                  <Card key={task.id} className="hover-elevate cursor-pointer" onClick={() => setLocation(`/staff/chat/${task.booking.chat?.id}`)} data-testid={`chat-card-${task.booking.chat?.id}`}>
+                  <Card key={task.id} className="hover-elevate cursor-pointer" onClick={() => setLocation(`/staff/chat/${task.booking?.chat?.id}`)} data-testid={`chat-card-${task.booking?.chat?.id}`}>
                     <CardContent className="p-4">
                       <div className="flex items-center justify-between gap-4 flex-wrap">
                         <div className="flex items-center gap-3">
-                          <Avatar className="h-10 w-10"><AvatarFallback>{getInitials(task.booking.customer.name)}</AvatarFallback></Avatar>
-                          <div><p className="font-medium">{task.booking.service.name}</p><p className="text-sm text-muted-foreground">{task.booking.customer.name} - {formatDistanceToNow(new Date(task.booking.chat?.createdAt || ""), { addSuffix: true })}</p></div>
+                          <Avatar className="h-10 w-10"><AvatarFallback>{getInitials(task.booking?.customer?.name || "??")}</AvatarFallback></Avatar>
+                          <div><p className="font-medium">{task.booking?.service?.name}</p><p className="text-sm text-muted-foreground">{task.booking?.customer?.name} - {formatDistanceToNow(new Date(task.booking?.chat?.createdAt || ""), { addSuffix: true })}</p></div>
                         </div>
                         <div className="flex items-center gap-2"><Badge variant="default">Active</Badge><ArrowRight className="h-4 w-4 text-muted-foreground" /></div>
                       </div>
@@ -96,12 +96,12 @@ export default function StaffChatsPage() {
             <h2 className="text-lg font-semibold mb-4">Closed Conversations ({closedChats.length})</h2>
             <div className="space-y-4">
               {closedChatsPagination.paginatedItems.map((task) => (
-                <Card key={task.id} className="opacity-75" data-testid={`chat-card-closed-${task.booking.chat?.id}`}>
+                <Card key={task.id} className="opacity-75" data-testid={`chat-card-closed-${task.booking?.chat?.id}`}>
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between gap-4 flex-wrap">
                       <div className="flex items-center gap-3">
-                        <Avatar className="h-10 w-10"><AvatarFallback className="bg-muted">{getInitials(task.booking.customer.name)}</AvatarFallback></Avatar>
-                        <div><p className="font-medium">{task.booking.service.name}</p><p className="text-sm text-muted-foreground">{task.booking.customer.name}</p></div>
+                        <Avatar className="h-10 w-10"><AvatarFallback className="bg-muted">{getInitials(task.booking?.customer?.name || "??")}</AvatarFallback></Avatar>
+                        <div><p className="font-medium">{task.booking?.service?.name}</p><p className="text-sm text-muted-foreground">{task.booking?.customer?.name}</p></div>
                       </div>
                       <Badge variant="secondary">Closed</Badge>
                     </div>

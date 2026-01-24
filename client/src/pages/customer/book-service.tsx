@@ -28,10 +28,11 @@ export default function BookServicePage() {
 
   const bookMutation = useMutation({
     mutationFn: async () => {
-      return apiRequest("POST", "/api/bookings", {
+      const res = await apiRequest("POST", "/api/bookings", {
         serviceId: id,
         customerId: "",
       });
+      return res.json();
     },
     onSuccess: async (data) => {
       await queryClient.invalidateQueries({ queryKey: ["/api/bookings"] });

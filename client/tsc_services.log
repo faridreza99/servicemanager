@@ -1,0 +1,8 @@
+src/pages/public/services.tsx(2,8): error TS1259: Module '"C:/Users/USER/Downloads/Project/servicemanager/node_modules/@types/react/index"' can only be default-imported using the 'allowSyntheticDefaultImports' flag
+src/pages/public/services.tsx(5,25): error TS2307: Cannot find module '@/lib/auth' or its corresponding type declarations.
+src/pages/public/services.tsx(6,30): error TS2307: Cannot find module '@/components/public-layout' or its corresponding type declarations.
+src/pages/public/services.tsx(7,24): error TS2307: Cannot find module '@/components/ui/button' or its corresponding type declarations.
+src/pages/public/services.tsx(8,23): error TS2307: Cannot find module '@/components/ui/badge' or its corresponding type declarations.
+src/pages/public/services.tsx(9,23): error TS2307: Cannot find module '@/components/ui/input' or its corresponding type declarations.
+src/pages/public/services.tsx(10,79): error TS2307: Cannot find module '@/components/ui/select' or its corresponding type declarations.
+src/pages/public/services.tsx(23,40): error TS2307: Cannot find module '@shared/schema' or its corresponding type declarations.

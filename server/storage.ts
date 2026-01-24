@@ -108,7 +108,7 @@ export interface IStorage {
   getBooking(id: string): Promise<BookingWithDetails | undefined>;
   createBooking(booking: InsertBooking): Promise<Booking>;
   updateBookingStatus(id: string, status: BookingStatus): Promise<Booking | undefined>;
-  assignBookingToStaff(bookingId: string, staffId: string): Promise<Booking | undefined>;
+  assignBookingToStaff(bookingId: string, staffId: string | null | undefined): Promise<Booking | undefined>;
   deleteBooking(id: string): Promise<boolean>;
 
   getChat(id: string): Promise<Chat | undefined>;
@@ -194,7 +194,7 @@ export interface IStorage {
   createInternalMessage(data: InsertInternalMessage): Promise<InternalMessage>;
   markInternalChatRead(chatId: string, userId: string): Promise<void>;
   getStaffAndAdminUsers(): Promise<User[]>;
-  
+
   // Team Chat (broadcast to all staff/admin)
   getTeamMessages(limit?: number): Promise<TeamMessageWithSender[]>;
   createTeamMessage(data: InsertTeamMessage): Promise<TeamMessage>;
@@ -239,7 +239,7 @@ export class DatabaseStorage implements IStorage {
     if (profile.name !== undefined) updateData.name = profile.name;
     if (profile.phone !== undefined) updateData.phone = profile.phone;
     if (profile.profilePhoto !== undefined) updateData.profilePhoto = profile.profilePhoto;
-    
+
     const [user] = await db.update(users).set(updateData).where(eq(users.id, id)).returning();
     return user;
   }
@@ -252,7 +252,7 @@ export class DatabaseStorage implements IStorage {
     if (updates.role !== undefined) updateData.role = updates.role;
     if (updates.approved !== undefined) updateData.approved = updates.approved;
     if (updates.leaveDaysQuota !== undefined) updateData.leaveDaysQuota = updates.leaveDaysQuota;
-    
+
     const [user] = await db.update(users).set(updateData).where(eq(users.id, id)).returning();
     return user;
   }
@@ -267,25 +267,25 @@ export class DatabaseStorage implements IStorage {
     return await db.transaction(async (tx) => {
       // Delete related records first to avoid foreign key constraint violations
       // Order matters: delete dependent tables first
-      
+
       // Delete attendance records for staff
       await tx.delete(attendance).where(eq(attendance.staffId, id));
-      
+
       // Delete leave requests for staff
       await tx.delete(leaveRequests).where(eq(leaveRequests.staffId, id));
-      
+
       // Delete notifications for user
       await tx.delete(notifications).where(eq(notifications.userId, id));
-      
+
       // Delete reviews by user
       await tx.delete(reviews).where(eq(reviews.userId, id));
-      
+
       // Delete tasks assigned to staff
       await tx.delete(tasks).where(eq(tasks.staffId, id));
-      
+
       // Delete messages sent by user
       await tx.delete(messages).where(eq(messages.senderId, id));
-      
+
       // For bookings where user is customer, we need to handle chats and related data
       // Get bookings where user is customer
       const customerBookings = await tx.select().from(bookings).where(eq(bookings.customerId, id));
@@ -302,13 +302,13 @@ export class DatabaseStorage implements IStorage {
       }
       // Delete bookings where user is customer
       await tx.delete(bookings).where(eq(bookings.customerId, id));
-      
+
       // Unassign staff from bookings (set assignedStaffId to null)
       await tx.update(bookings).set({ assignedStaffId: null }).where(eq(bookings.assignedStaffId, id));
-      
+
       // Clear approvedBy in leave requests (set to null)
       await tx.update(leaveRequests).set({ approvedBy: null }).where(eq(leaveRequests.approvedBy, id));
-      
+
       // Now delete the user
       const result = await tx.delete(users).where(eq(users.id, id)).returning();
       return result.length > 0;
@@ -325,11 +325,11 @@ export class DatabaseStorage implements IStorage {
 
   async getActiveServicesFiltered(category?: ServiceCategory, search?: string): Promise<Service[]> {
     const conditions = [eq(services.isActive, true)];
-    
+
     if (category) {
       conditions.push(eq(services.category, category));
     }
-    
+
     if (search) {
       conditions.push(
         or(
@@ -338,7 +338,7 @@ export class DatabaseStorage implements IStorage {
         )!
       );
     }
-    
+
     return db.select().from(services).where(and(...conditions)).orderBy(services.name);
   }
 
@@ -450,7 +450,7 @@ export class DatabaseStorage implements IStorage {
     return booking;
   }
 
-  async assignBookingToStaff(bookingId: string, staffId: string): Promise<Booking | undefined> {
+  async assignBookingToStaff(bookingId: string, staffId: string | null | undefined): Promise<Booking | undefined> {
     const [booking] = await db
       .update(bookings)
       .set({ assignedStaffId: staffId, status: "confirmed" })
@@ -495,7 +495,7 @@ export class DatabaseStorage implements IStorage {
 
   async getMessages(chatId: string, userId: string, isStaff: boolean): Promise<MessageWithSender[]> {
     let result;
-    
+
     if (isStaff) {
       result = await db
         .select()
@@ -725,7 +725,7 @@ export class DatabaseStorage implements IStorage {
       .leftJoin(users, eq(reviews.userId, users.id))
       .where(and(eq(reviews.serviceId, serviceId), eq(reviews.isPublished, true)))
       .orderBy(desc(reviews.createdAt));
-    
+
     return result.map((row) => ({
       ...row.reviews,
       user: row.users!,
@@ -740,7 +740,7 @@ export class DatabaseStorage implements IStorage {
       })
       .from(reviews)
       .where(and(eq(reviews.serviceId, serviceId), eq(reviews.isPublished, true)));
-    
+
     return {
       avgRating: result[0]?.avgRating ? Number(result[0].avgRating) : 0,
       reviewCount: result[0]?.reviewCount || 0,
@@ -749,11 +749,11 @@ export class DatabaseStorage implements IStorage {
 
   async getServicesWithRatings(category?: ServiceCategory, search?: string, limit?: number, offset?: number): Promise<ServiceWithRating[]> {
     const conditions = [eq(services.isActive, true)];
-    
+
     if (category) {
       conditions.push(eq(services.category, category));
     }
-    
+
     if (search) {
       conditions.push(
         or(
@@ -762,7 +762,7 @@ export class DatabaseStorage implements IStorage {
         )!
       );
     }
-    
+
     const result = await db
       .select({
         id: services.id,
@@ -783,7 +783,7 @@ export class DatabaseStorage implements IStorage {
       .orderBy(services.name)
       .limit(limit || 1000)
       .offset(offset || 0);
-    
+
     return result.map((row) => ({
       ...row,
       avgRating: Number(row.avgRating) || 0,
@@ -793,11 +793,11 @@ export class DatabaseStorage implements IStorage {
 
   async getServicesCount(category?: ServiceCategory, search?: string): Promise<number> {
     const conditions = [eq(services.isActive, true)];
-    
+
     if (category) {
       conditions.push(eq(services.category, category));
     }
-    
+
     if (search) {
       conditions.push(
         or(
@@ -806,12 +806,12 @@ export class DatabaseStorage implements IStorage {
         )!
       );
     }
-    
+
     const result = await db
       .select({ count: count(services.id) })
       .from(services)
       .where(and(...conditions));
-    
+
     return result[0]?.count || 0;
   }
 
@@ -835,7 +835,7 @@ export class DatabaseStorage implements IStorage {
       .groupBy(services.id, services.name, services.description, services.category, services.imageUrl, services.isActive, services.createdAt, services.updatedAt)
       .orderBy(sql`COALESCE(AVG(CASE WHEN reviews.is_published = true THEN reviews.rating END), 0) DESC`)
       .limit(limit);
-    
+
     return result.map((row) => ({
       ...row,
       avgRating: Number(row.avgRating) || 0,
@@ -917,7 +917,7 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(pageContent)
       .where(and(eq(pageContent.pageKey, pageKey), eq(pageContent.sectionKey, sectionKey)));
-    
+
     if (existing.length > 0) {
       const [updated] = await db
         .update(pageContent)
@@ -926,7 +926,7 @@ export class DatabaseStorage implements IStorage {
         .returning();
       return updated;
     }
-    
+
     const [created] = await db.insert(pageContent).values({ pageKey, sectionKey, content: contentStr }).returning();
     return created;
   }
@@ -971,7 +971,7 @@ export class DatabaseStorage implements IStorage {
 
   async getAllAttendance(startDate?: string, endDate?: string): Promise<AttendanceWithStaff[]> {
     const conditions = [];
-    
+
     if (startDate) {
       conditions.push(gte(attendance.date, startDate));
     }
@@ -1065,7 +1065,7 @@ export class DatabaseStorage implements IStorage {
 
   async getAuditLogs(filters?: { action?: AuditAction; actorRole?: UserRole; startDate?: string; endDate?: string; limit?: number; offset?: number }): Promise<AuditLogWithActor[]> {
     const conditions: any[] = [];
-    
+
     if (filters?.action) {
       conditions.push(eq(auditLogs.action, filters.action));
     }
@@ -1102,7 +1102,7 @@ export class DatabaseStorage implements IStorage {
 
   async getAuditLogsCount(filters?: { action?: AuditAction; actorRole?: UserRole; startDate?: string; endDate?: string }): Promise<number> {
     const conditions: any[] = [];
-    
+
     if (filters?.action) {
       conditions.push(eq(auditLogs.action, filters.action));
     }
@@ -1249,14 +1249,14 @@ export class DatabaseStorage implements IStorage {
 
   async createInternalChat(data: InsertInternalChat, participantIds: string[]): Promise<InternalChat> {
     const [chat] = await db.insert(internalChats).values(data).returning();
-    
+
     for (const participantId of participantIds) {
       await db.insert(internalChatParticipants).values({
         chatId: chat.id,
         userId: participantId,
       });
     }
-    
+
     return chat;
   }
 

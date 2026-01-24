@@ -1,200 +1,211 @@
-import { useState } from "react";
+"use client";
+import React, { useState } from "react";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth";
 import { PublicLayout } from "@/components/public-layout";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Pagination } from "@/components/pagination";
-import { Star, Search, ArrowRight, Filter } from "lucide-react";
-import { SERVICE_CATEGORIES, type ServiceWithRating, type ServiceCategory } from "@shared/schema";
+import {
+  Search,
+  Filter,
+  ArrowRight,
+  Shield,
+  Server,
+  Lock,
+  Camera,
+  Star,
+  CheckCircle2
+} from "lucide-react";
+import { motion } from "framer-motion";
+import type { ServiceWithRating } from "@shared/schema";
 
-interface ServicesResponse {
-  services: ServiceWithRating[];
-  pagination: {
-    page: number;
-    limit: number;
-    total: number;
-    totalPages: number;
-    hasMore: boolean;
+// --- Components ---
+
+function ServiceCard({ service, index }: { service: ServiceWithRating; index: number }) {
+  // Map categories to icons (consistent with Home)
+  const getIcon = (cat: string) => {
+    const c = cat.toLowerCase();
+    if (c.includes("cctv") || c.includes("camera")) return Camera;
+    if (c.includes("network") || c.includes("wifi")) return Server;
+    if (c.includes("security")) return Lock;
+    return Shield;
   };
-}
 
-function StarRating({ rating, count }: { rating: number; count: number }) {
+  const Icon = getIcon(service.category);
+
   return (
-    <div className="flex items-center gap-1">
-      <div className="flex">
-        {[1, 2, 3, 4, 5].map((star) => (
-          <Star
-            key={star}
-            className={`h-4 w-4 ${
-              star <= Math.round(rating)
-                ? "text-yellow-500 fill-yellow-500"
-                : "text-muted-foreground"
-            }`}
-          />
-        ))}
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true }}
+      transition={{ delay: index * 0.05 }}
+      className="group flex flex-col bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden hover:shadow-xl hover:border-blue-500/30 dark:hover:border-blue-500/30 transition-all duration-300"
+    >
+      <div className="h-48 bg-slate-50 dark:bg-slate-950 relative flex items-center justify-center p-6 group-hover:bg-blue-50/50 dark:group-hover:bg-blue-900/10 transition-colors">
+        {/* Icon Container */}
+        <div className="w-20 h-20 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-center group-hover:scale-110 group-hover:shadow-md transition-all duration-300">
+          <Icon className="w-10 h-10 text-slate-400 dark:text-slate-500 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors" />
+        </div>
+
+        {/* Rating Badge */}
+        <div className="absolute top-4 right-4 bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm border border-slate-200 dark:border-slate-800 px-2 py-1 rounded-md text-xs font-bold flex items-center gap-1 shadow-sm">
+          <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />
+          {service.avgRating > 0 ? service.avgRating.toFixed(1) : "New"}
+        </div>
       </div>
-      <span className="text-sm text-muted-foreground">
-        {rating > 0 ? rating.toFixed(1) : "No ratings"} ({count})
-      </span>
-    </div>
+
+      <div className="p-6 flex flex-col flex-1">
+        <div className="mb-4">
+          <div className="flex justify-between items-start mb-2">
+            <Badge variant="outline" className="border-slate-200 dark:border-slate-700 text-slate-500 text-[10px] uppercase tracking-wider">
+              {service.category}
+            </Badge>
+            {service.avgRating >= 4.5 && (
+              <span className="text-[10px] font-bold text-green-600 flex items-center gap-1">
+                <CheckCircle2 className="w-3 h-3" /> Popular
+              </span>
+            )}
+          </div>
+
+          <h3 className="text-xl font-bold text-slate-900 dark:text-white group-hover:text-blue-600 transition-colors">
+            {service.name}
+          </h3>
+        </div>
+
+        <p className="text-slate-600 dark:text-slate-400 text-sm line-clamp-3 mb-6 flex-1 leading-relaxed">
+          {service.description}
+        </p>
+
+        <div className="flex items-center gap-3 mt-auto pt-4 border-t border-slate-100 dark:border-slate-800">
+          <Link href={`/services/${service.id}`} className="flex-1">
+            <Button className="w-full bg-slate-900 dark:bg-white hover:bg-slate-800 dark:hover:bg-slate-200 text-white dark:text-slate-900 font-medium">
+              Book Now
+            </Button>
+          </Link>
+          <Link href={`/services/${service.id}`}>
+            <Button variant="ghost" size="icon" className="text-slate-500 hover:text-blue-600">
+              <ArrowRight className="w-5 h-5" />
+            </Button>
+          </Link>
+        </div>
+      </div>
+    </motion.div>
   );
 }
 
 export default function ServicesPage() {
-  const { user } = useAuth();
   const [search, setSearch] = useState("");
-  const [category, setCategory] = useState<string>("all");
-  const [page, setPage] = useState(1);
-  
-  const queryParams = new URLSearchParams();
-  queryParams.set("page", page.toString());
-  queryParams.set("limit", "12");
-  if (search) queryParams.set("search", search);
-  if (category && category !== "all") queryParams.set("category", category);
-  
-  const { data, isLoading } = useQuery<ServicesResponse>({
-    queryKey: ["/api/public/services", { search, category, page }],
+  const [category, setCategory] = useState("all");
+
+  const { data, isLoading } = useQuery<{ services: ServiceWithRating[]; pagination: any }>({
+    queryKey: ["/api/public/services"],
     queryFn: async () => {
-      const res = await fetch(`/api/public/services?${queryParams.toString()}`);
-      if (!res.ok) throw new Error("Failed to fetch services");
+      const res = await fetch("/api/public/services");
+      if (!res.ok) throw new Error("Failed to load services");
       return res.json();
     },
   });
-  
-  const handleSearch = (value: string) => {
-    setSearch(value);
-    setPage(1);
-  };
-  
-  const handleCategoryChange = (value: string) => {
-    setCategory(value);
-    setPage(1);
-  };
-  
+
+  const services = data?.services || [];
+
+  // Filter Logic
+  const filteredServices = services.filter(s => {
+    const matchesSearch = s.name.toLowerCase().includes(search.toLowerCase()) ||
+      s.description.toLowerCase().includes(search.toLowerCase());
+    const matchesCategory = category === "all" || s.category.toLowerCase() === category.toLowerCase();
+    return matchesSearch && matchesCategory;
+  });
+
+  const categories = Array.from(new Set(services.map(s => s.category) || [])).sort();
+
   return (
     <PublicLayout>
-      <div className="container mx-auto px-4 md:px-6 py-12">
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold tracking-tight mb-4">Our Services</h1>
-          <p className="text-muted-foreground max-w-2xl mx-auto">
-            Browse our comprehensive range of IT services designed to meet your business and personal needs
-          </p>
-        </div>
-        
-        <div className="flex flex-col sm:flex-row gap-4 mb-8">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search services..."
-              value={search}
-              onChange={(e) => handleSearch(e.target.value)}
-              className="pl-10"
-              data-testid="input-search"
-            />
-          </div>
-          <Select value={category} onValueChange={handleCategoryChange}>
-            <SelectTrigger className="w-full sm:w-48" data-testid="select-category">
-              <Filter className="h-4 w-4 mr-2" />
-              <SelectValue placeholder="All Categories" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Categories</SelectItem>
-              {SERVICE_CATEGORIES.map((cat) => (
-                <SelectItem key={cat.value} value={cat.value}>
-                  {cat.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        
-        {isLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <Card key={i}>
-                <CardHeader>
-                  <Skeleton className="h-6 w-3/4" />
-                  <Skeleton className="h-4 w-full mt-2" />
-                  <Skeleton className="h-4 w-2/3 mt-1" />
-                </CardHeader>
-                <CardContent>
-                  <Skeleton className="h-4 w-1/2" />
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        ) : data?.services.length === 0 ? (
-          <div className="text-center py-12">
-            <p className="text-muted-foreground">No services found matching your criteria.</p>
-            <Button 
-              variant="outline" 
-              className="mt-4"
-              onClick={() => { setSearch(""); setCategory("all"); }}
-            >
-              Clear Filters
-            </Button>
-          </div>
-        ) : (
-          <>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {data?.services.map((service) => (
-                <Card key={service.id} className="hover-elevate flex flex-col overflow-hidden" data-testid={`card-service-${service.id}`}>
-                  {service.imageUrl && (
-                    <div className="relative h-40 w-full overflow-hidden">
-                      <img 
-                        src={service.imageUrl} 
-                        alt={service.name}
-                        className="h-full w-full object-cover"
-                        data-testid={`image-service-${service.id}`}
-                      />
-                    </div>
-                  )}
-                  <CardHeader className="flex-1">
-                    <div className="flex items-start justify-between gap-2 flex-wrap">
-                      <CardTitle className="text-lg">{service.name}</CardTitle>
-                      <Badge variant="outline">{service.category}</Badge>
-                    </div>
-                    <CardDescription className="line-clamp-3">
-                      {service.description}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <StarRating rating={service.avgRating} count={service.reviewCount} />
-                    <div className="flex items-center gap-2 mt-4 flex-wrap">
-                      <Link href={`/services/${service.id}`}>
-                        <Button variant="outline" size="sm" data-testid={`button-view-${service.id}`}>
-                          View Details
-                        </Button>
-                      </Link>
-                      <Link href={user ? `/dashboard/book/${service.id}` : "/login"}>
-                        <Button size="sm" data-testid={`button-book-${service.id}`}>
-                          Book Now
-                          <ArrowRight className="ml-1 h-3 w-3" />
-                        </Button>
-                      </Link>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
+
+        {/* Page Header */}
+        <section className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 py-16 md:py-24">
+          <div className="container mx-auto px-4">
+            <div className="max-w-3xl">
+              <h1 className="text-4xl md:text-5xl font-bold text-slate-900 dark:text-white mb-6">
+                Service Catalog
+              </h1>
+              <p className="text-xl text-slate-600 dark:text-slate-300 leading-relaxed">
+                Explore our comprehensive range of professional IT and security solutions.
+                From residential CCTV to enterprise network infrastructure.
+              </p>
             </div>
-            
-            {data?.pagination && data.pagination.totalPages > 1 && (
-              <Pagination
-                currentPage={page}
-                totalPages={data.pagination.totalPages}
-                pageSize={data.pagination.limit}
-                totalItems={data.pagination.total}
-                onPageChange={setPage}
-              />
-            )}
-          </>
-        )}
+          </div>
+        </section>
+
+        {/* Toolbar & Grid */}
+        <section className="py-12">
+          <div className="container mx-auto px-4">
+
+            {/* Search & Filter Bar */}
+            <div className="flex flex-col md:flex-row gap-4 mb-10 items-center justify-between bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm sticky top-20 z-30">
+              <div className="relative flex-1 w-full md:max-w-md">
+                <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+                <Input
+                  placeholder="Search for services..."
+                  className="pl-10 h-10 bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
+
+              <div className="flex gap-4 w-full md:w-auto">
+                <Select value={category} onValueChange={setCategory}>
+                  <SelectTrigger className="w-[180px] h-10 bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800">
+                    <SelectValue placeholder="Category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Categories</SelectItem>
+                    {categories.map(c => (
+                      <SelectItem key={c} value={c}>{c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Button variant="outline" className="border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300">
+                  <Filter className="w-4 h-4 mr-2" />
+                  Filters
+                </Button>
+              </div>
+            </div>
+
+            {/* Results Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {isLoading ? (
+                Array.from({ length: 8 }).map((_, i) => (
+                  <div key={i} className="h-[400px] bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 animate-pulse" />
+                ))
+              ) : filteredServices.length > 0 ? (
+                filteredServices.map((service, index) => (
+                  <ServiceCard key={service.id} service={service} index={index} />
+                ))
+              ) : (
+                <div className="col-span-full py-20 text-center">
+                  <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Search className="w-8 h-8 text-slate-400" />
+                  </div>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">No services found</h3>
+                  <p className="text-slate-500">Try adjusting your search terms or filters.</p>
+                  <Button
+                    variant="ghost"
+                    className="text-blue-600 mt-2"
+                    onClick={() => { setSearch(""); setCategory("all"); }}
+                  >
+                    Clear all filters
+                  </Button>
+                </div>
+              )}
+            </div>
+
+          </div>
+        </section>
       </div>
     </PublicLayout>
   );

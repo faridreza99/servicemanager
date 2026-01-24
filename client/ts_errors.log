@@ -1,0 +1,69 @@
+src/pages/public/home.tsx(78,31): error TS2339: Property 'externalUrl' does not exist on type 'ServiceWithRating'.
+src/pages/public/services.tsx(83,31): error TS2339: Property 'externalUrl' does not exist on type 'ServiceWithRating'.
+src/pages/public/services.tsx(197,21): error TS2322: Type '"link"' is not assignable to type '"default" | "secondary" | "outline" | "destructive" | "ghost" | null | undefined'.
+src/pages/staff/chats.tsx(31,46): error TS18049: 't.booking' is possibly 'null' or 'undefined'.
+src/pages/staff/chats.tsx(32,50): error TS18049: 't.booking' is possibly 'null' or 'undefined'.
+src/pages/staff/chats.tsx(33,53): error TS18049: 't.booking' is possibly 'null' or 'undefined'.
+src/pages/staff/chats.tsx(67,122): error TS18049: 'task.booking' is possibly 'null' or 'undefined'.
+src/pages/staff/chats.tsx(67,174): error TS18049: 'task.booking' is possibly 'null' or 'undefined'.
+src/pages/staff/chats.tsx(71,86): error TS18049: 'task.booking' is possibly 'null' or 'undefined'.
+src/pages/staff/chats.tsx(72,60): error TS18049: 'task.booking' is possibly 'null' or 'undefined'.
+src/pages/staff/chats.tsx(72,136): error TS18049: 'task.booking' is possibly 'null' or 'undefined'.
+src/pages/staff/chats.tsx(72,196): error TS18049: 'task.booking' is possibly 'null' or 'undefined'.
+src/pages/staff/chats.tsx(99,93): error TS18049: 'task.booking' is possibly 'null' or 'undefined'.
+src/pages/staff/chats.tsx(103,105): error TS18049: 'task.booking' is possibly 'null' or 'undefined'.
+src/pages/staff/chats.tsx(104,58): error TS18049: 'task.booking' is possibly 'null' or 'undefined'.
+src/pages/staff/chats.tsx(104,134): error TS18049: 'task.booking' is possibly 'null' or 'undefined'.
+src/pages/staff/dashboard.tsx(562,96): error TS18049: 'task.booking' is possibly 'null' or 'undefined'.
+../server/routes.ts(736,57): error TS2345: Argument of type 'undefined' is not assignable to parameter of type 'string'.
+../server/routes.ts(2245,80): error TS2552: Cannot find name 'NextFunction'. Did you mean 'Function'?
+../server/routes.ts(2247,18): error TS2349: This expression is not callable.
+  Type 'Number' has no call signatures.
+../server/routes.ts(2253,50): error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '(req: AuthenticatedRequest, res: Response, next: NextFunction) => any' is not assignable to parameter of type 'RequestHandlerParams<ParamsDictionary, any, any, ParsedQs, Record<string, any>>'.
+      Type '(req: AuthenticatedRequest, res: Response, next: NextFunction) => any' is not assignable to type 'RequestHandler<ParamsDictionary, any, any, ParsedQs, Record<string, any>>'.
+        Types of parameters 'res' and 'res' are incompatible.
+          Type 'Response<any, Record<string, any>, number>' is missing the following properties from type 'Response': headers, ok, redirected, statusText, and 9 more.
+../server/routes.ts(2266,56): error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '(req: AuthenticatedRequest, res: Response, next: NextFunction) => any' is not assignable to parameter of type 'RequestHandlerParams<ParamsDictionary, any, any, ParsedQs, Record<string, any>>'.
+      Type '(req: AuthenticatedRequest, res: Response, next: NextFunction) => any' is not assignable to type 'RequestHandler<ParamsDictionary, any, any, ParsedQs, Record<string, any>>'.
+        Types of parameters 'res' and 'res' are incompatible.
+          Type 'Response<any, Record<string, any>, number>' is missing the following properties from type 'Response': headers, ok, redirected, statusText, and 9 more.
+../server/routes.ts(2279,51): error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '(req: AuthenticatedRequest, res: Response, next: NextFunction) => any' is not assignable to parameter of type 'RequestHandlerParams<ParamsDictionary, any, any, ParsedQs, Record<string, any>>'.
+      Type '(req: AuthenticatedRequest, res: Response, next: NextFunction) => any' is not assignable to type 'RequestHandler<ParamsDictionary, any, any, ParsedQs, Record<string, any>>'.
+        Types of parameters 'res' and 'res' are incompatible.
+          Type 'Response<any, Record<string, any>, number>' is missing the following properties from type 'Response': headers, ok, redirected, statusText, and 9 more.
+../server/routes.ts(2316,67): error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '(req: AuthenticatedRequest, res: Response, next: NextFunction) => any' is not assignable to parameter of type 'RequestHandlerParams<ParamsDictionary, any, any, ParsedQs, Record<string, any>>'.
+      Type '(req: AuthenticatedRequest, res: Response, next: NextFunction) => any' is not assignable to type 'RequestHandler<ParamsDictionary, any, any, ParsedQs, Record<string, any>>'.
+        Types of parameters 'res' and 'res' are incompatible.
+          Type 'Response<any, Record<string, any>, number>' is missing the following properties from type 'Response': headers, ok, redirected, statusText, and 9 more.
+../server/routes.ts(2336,68): error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '(req: AuthenticatedRequest, res: Response, next: NextFunction) => any' is not assignable to parameter of type 'RequestHandlerParams<ParamsDictionary, any, any, ParsedQs, Record<string, any>>'.
+      Type '(req: AuthenticatedRequest, res: Response, next: NextFunction) => any' is not assignable to type 'RequestHandler<ParamsDictionary, any, any, ParsedQs, Record<string, any>>'.
+        Types of parameters 'res' and 'res' are incompatible.
+          Type 'Response<any, Record<string, any>, number>' is missing the following properties from type 'Response': headers, ok, redirected, statusText, and 9 more.
+../server/routes.ts(2379,64): error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '(req: AuthenticatedRequest, res: Response, next: NextFunction) => any' is not assignable to parameter of type 'RequestHandlerParams<ParamsDictionary, any, any, ParsedQs, Record<string, any>>'.
+      Type '(req: AuthenticatedRequest, res: Response, next: NextFunction) => any' is not assignable to type 'RequestHandler<ParamsDictionary, any, any, ParsedQs, Record<string, any>>'.
+        Types of parameters 'res' and 'res' are incompatible.
+          Type 'Response<any, Record<string, any>, number>' is missing the following properties from type 'Response': headers, ok, redirected, statusText, and 9 more.
+../server/routes.ts(2401,54): error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '(req: AuthenticatedRequest, res: Response, next: NextFunction) => any' is not assignable to parameter of type 'RequestHandlerParams<ParamsDictionary, any, any, ParsedQs, Record<string, any>>'.
+      Type '(req: AuthenticatedRequest, res: Response, next: NextFunction) => any' is not assignable to type 'RequestHandler<ParamsDictionary, any, any, ParsedQs, Record<string, any>>'.
+        Types of parameters 'res' and 'res' are incompatible.
+          Type 'Response<any, Record<string, any>, number>' is missing the following properties from type 'Response': headers, ok, redirected, statusText, and 9 more.
+../server/routes.ts(2412,55): error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '(req: AuthenticatedRequest, res: Response, next: NextFunction) => any' is not assignable to parameter of type 'RequestHandlerParams<ParamsDictionary, any, any, ParsedQs, Record<string, any>>'.
+      Type '(req: AuthenticatedRequest, res: Response, next: NextFunction) => any' is not assignable to type 'RequestHandler<ParamsDictionary, any, any, ParsedQs, Record<string, any>>'.
+        Types of parameters 'res' and 'res' are incompatible.
+          Type 'Response<any, Record<string, any>, number>' is missing the following properties from type 'Response': headers, ok, redirected, statusText, and 9 more.

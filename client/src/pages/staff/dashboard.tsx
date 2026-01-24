@@ -26,9 +26,9 @@ import type { TaskWithDetails, Attendance, LeaveRequestWithDetails, Notification
 import { useState, useEffect } from "react";
 
 interface LeaveQuota {
-  leaveDaysQuota: number;
-  leaveDaysUsed: number;
-  leaveDaysRemaining: number;
+  total: number;
+  used: number;
+  remaining: number;
 }
 
 const leaveRequestSchema = z.object({
@@ -121,8 +121,9 @@ export default function StaffDashboard() {
   });
 
   const handleCloseBroadcastPopup = () => {
-    if (selectedBroadcast) {
-      markBroadcastReadMutation.mutate(selectedBroadcast.id);
+    const id = selectedBroadcast?.id;
+    if (id) {
+      markBroadcastReadMutation.mutate(id);
     }
     setBroadcastPopupOpen(false);
     setSelectedBroadcast(null);
@@ -208,21 +209,21 @@ export default function StaffDashboard() {
     },
   });
 
-  const isQuotaExhausted = Boolean(leaveQuota && leaveQuota.leaveDaysRemaining <= 0);
+  const isQuotaExhausted = Boolean(leaveQuota && leaveQuota.remaining <= 0);
   const isQuotaUnavailable = quotaLoading || quotaError || !leaveQuota;
 
   const handleClockAction = (action: "in" | "out") => {
     setLocationStatus("Fetching location...");
     if (!navigator.geolocation) {
       setLocationStatus("Location not supported");
-      toast({ 
-        title: "GPS Location Required", 
+      toast({
+        title: "GPS Location Required",
         description: "Your browser does not support location services. Please use a modern browser to clock in/out.",
         variant: "destructive"
       });
       return;
     }
-    
+
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const locationData = {
@@ -246,8 +247,8 @@ export default function StaffDashboard() {
         } else if (error.code === error.TIMEOUT) {
           errorMessage = "Location request timed out. Please try again.";
         }
-        toast({ 
-          title: "GPS Location Required", 
+        toast({
+          title: "GPS Location Required",
           description: errorMessage,
           variant: "destructive"
         });
@@ -288,14 +289,14 @@ export default function StaffDashboard() {
           <StatCard title="In Progress" value={inProgressTasks.length} icon={<ClipboardList className="h-4 w-4" />} description="Currently working" />
           <StatCard title="Completed" value={completedTasks.length} icon={<CheckCircle className="h-4 w-4" />} description="All time" />
           <StatCard title="Leave Requests" value={pendingLeaves.length} icon={<Calendar className="h-4 w-4" />} description="Pending approval" />
-          <StatCard 
-            title="Leave Days" 
-            value={quotaLoading ? "-" : (leaveQuota ? `${leaveQuota.leaveDaysRemaining}/${leaveQuota.leaveDaysQuota}` : "N/A")} 
-            icon={<Calendar className="h-4 w-4" />} 
-            description={isQuotaExhausted ? "Quota exhausted" : "Days remaining"} 
+          <StatCard
+            title="Leave Days"
+            value={quotaLoading ? "-" : (leaveQuota ? `${leaveQuota.remaining}/${leaveQuota.total}` : "N/A")}
+            icon={<Calendar className="h-4 w-4" />}
+            description={isQuotaExhausted ? "Quota exhausted" : "Days remaining"}
           />
         </div>
-        
+
         {isQuotaExhausted && (
           <Alert variant="destructive" data-testid="leave-quota-exhausted-banner">
             <AlertTriangle className="h-4 w-4" />
@@ -350,7 +351,7 @@ export default function StaffDashboard() {
                       )}
                     </div>
                   </div>
-                  
+
                   {locationStatus && (
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <MapPin className="h-4 w-4" />
@@ -409,7 +410,7 @@ export default function StaffDashboard() {
                     <DialogTitle>Request Leave</DialogTitle>
                     <DialogDescription>Submit a new leave request for approval</DialogDescription>
                   </DialogHeader>
-                  
+
                   {quotaLoading ? (
                     <Skeleton className="h-12 w-full" />
                   ) : leaveQuota ? (
@@ -417,15 +418,15 @@ export default function StaffDashboard() {
                       <p className="text-sm text-muted-foreground">Leave Quota</p>
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-medium">
-                          {leaveQuota.leaveDaysRemaining} / {leaveQuota.leaveDaysQuota} days remaining
+                          {leaveQuota.remaining} / {leaveQuota.total} days remaining
                         </span>
                         <span className="text-xs text-muted-foreground">
-                          ({leaveQuota.leaveDaysUsed} used)
+                          ({leaveQuota.used} used)
                         </span>
                       </div>
                     </div>
                   ) : null}
-                  
+
                   {isQuotaExhausted && (
                     <Alert variant="destructive" data-testid="leave-quota-exhausted-alert">
                       <AlertTriangle className="h-4 w-4" />
@@ -435,7 +436,7 @@ export default function StaffDashboard() {
                       </AlertDescription>
                     </Alert>
                   )}
-                  
+
                   <Form {...leaveRequestForm}>
                     <form onSubmit={leaveRequestForm.handleSubmit((data) => createLeaveRequestMutation.mutate(data))} className="space-y-4">
                       <FormField
@@ -554,12 +555,12 @@ export default function StaffDashboard() {
               ) : (
                 <div className="space-y-4">
                   {activeTasks.slice(0, 5).map((task) => (
-                    <TaskCard 
-                      key={task.id} 
-                      task={task} 
+                    <TaskCard
+                      key={task.id}
+                      task={task}
                       onStart={() => updateTaskMutation.mutate({ taskId: task.id, status: "in_progress" })}
                       onComplete={() => updateTaskMutation.mutate({ taskId: task.id, status: "completed" })}
-                      onViewBooking={task.booking?.chat?.id ? () => setLocation(`/staff/chat/${task.booking.chat?.id}`) : undefined}
+                      onViewBooking={task.booking?.chat?.id ? () => setLocation(`/staff/chat/${task.booking?.chat?.id}`) : undefined}
                     />
                   ))}
                 </div>
@@ -592,8 +593,8 @@ export default function StaffDashboard() {
               ) : (
                 <div className="space-y-3">
                   {broadcasts.slice(0, 4).map((broadcast) => (
-                    <div 
-                      key={broadcast.id} 
+                    <div
+                      key={broadcast.id}
                       className="p-3 rounded-md bg-muted/50 space-y-2 hover-elevate cursor-pointer"
                       onClick={() => {
                         setSelectedBroadcast(broadcast);
@@ -641,11 +642,11 @@ export default function StaffDashboard() {
               {selectedBroadcast && format(new Date(selectedBroadcast.createdAt), "MMMM d, yyyy 'at' h:mm a")}
             </DialogDescription>
           </DialogHeader>
-          
+
           {selectedBroadcast && (
             <div className="space-y-4">
               <div className="text-sm whitespace-pre-wrap">{selectedBroadcast.content}</div>
-              
+
               {selectedBroadcast.attachments && selectedBroadcast.attachments.length > 0 && (
                 <div className="space-y-2">
                   <p className="text-sm font-medium">Attachments</p>
@@ -653,7 +654,7 @@ export default function StaffDashboard() {
                     {selectedBroadcast.attachments.map((url, idx) => {
                       const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(url);
                       const isVideo = /\.(mp4|webm|mov)$/i.test(url);
-                      
+
                       if (isImage) {
                         return (
                           <a key={idx} href={url} target="_blank" rel="noopener noreferrer" className="block">
@@ -661,18 +662,18 @@ export default function StaffDashboard() {
                           </a>
                         );
                       }
-                      
+
                       if (isVideo) {
                         return (
                           <video key={idx} src={url} controls className="rounded-md max-h-48 w-full" />
                         );
                       }
-                      
+
                       return (
-                        <a 
-                          key={idx} 
-                          href={url} 
-                          target="_blank" 
+                        <a
+                          key={idx}
+                          href={url}
+                          target="_blank"
                           rel="noopener noreferrer"
                           className="flex items-center gap-2 p-2 rounded-md bg-muted/50 hover-elevate text-sm"
                         >
@@ -684,7 +685,7 @@ export default function StaffDashboard() {
                   </div>
                 </div>
               )}
-              
+
               <Button onClick={handleCloseBroadcastPopup} className="w-full" data-testid="button-close-broadcast">
                 Got It
               </Button>
